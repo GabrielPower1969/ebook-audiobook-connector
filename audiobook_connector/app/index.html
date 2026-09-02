@@ -1,0 +1,33 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>书架</title>
+<style>
+:root{--bg:#faf7f2;--fg:#2b2620;--muted:#8a8078;--card:#fff;--line:#e3dcd2;--acc:#c2511f}
+@media(prefers-color-scheme:dark){:root{--bg:#1b1917;--fg:#e8e2d9;--muted:#8f877d;--card:#242120;--line:#33302b;--acc:#f08a55}}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,system-ui,sans-serif;padding:40px 6vw}
+h1{font-weight:600;letter-spacing:.02em}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:24px}
+a.book{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:transform .15s}
+a.book:hover{transform:translateY(-3px)}
+.cov{aspect-ratio:2/3;background:var(--line);display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;font-weight:600}
+.cov img{width:100%;height:100%;object-fit:cover}
+.meta{padding:10px 12px}.meta b{display:block;font-size:15px}.meta span{color:var(--muted);font-size:13px}
+.bar{height:4px;background:var(--line)}.bar i{display:block;height:100%;background:var(--acc)}
+p.empty{color:var(--muted)}
+</style></head><body>
+<h1>书架</h1><div id="grid"></div>
+<script>
+fetch('index.json').then(r=>r.json()).then(bs=>{
+  const g=document.getElementById('grid');
+  if(!bs.length){g.innerHTML='<p class="empty">还没有书。运行 <code>python -m audiobook_connector build &lt;目录&gt;</code></p>';return;}
+  for(const b of bs){
+    const a=document.createElement('a');a.className='book';a.href='reader.html?book='+encodeURIComponent(b.slug);
+    const pct=Math.round(100*b.aligned/Math.max(1,b.paragraphs));
+    let pos=null;try{pos=JSON.parse(localStorage.getItem('pos:'+b.slug))}catch(e){}
+    a.innerHTML=`<div class="cov">${b.cover?`<img src="${b.slug}/${b.cover}" alt="">`:''}</div>
+      <div class="meta"><b></b><span></span><br><span>${b.files} 段音频 · ${pct}% 段落已对齐${pos?' · 继续阅读':''}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+    a.querySelector('b').textContent=b.title;a.querySelector('span').textContent=b.author||'';
+    if(!b.cover)a.querySelector('.cov').textContent=b.title;
+    g.appendChild(a);
+  }
+});
+</script></body></html>
