@@ -1,5 +1,6 @@
 # Reader on the LAN:            docker compose up -d
 # Build a book (no Mac needed): docker compose run --rm cli build <folder-under-books>
+# Public + Google login:        docker compose --profile public up -d   (see README → Public access)
 services:
   reader:
     build: { context: ., target: server }
@@ -10,7 +11,20 @@ services:
       - "${AC_PORT:-8765}:8765"
     volumes:
       - ./books:/app/books:ro       # your epub + audio, never modified
-      - ./library:/app/library      # built books, served from here
+      - ./library:/app/library      # built books + _progress/ (per-user reading positions)
+    environment:                    # all optional; set in .env when exposing publicly
+      AC_ACCESS_TEAM: "${AC_ACCESS_TEAM:-}"     # Cloudflare Zero Trust team name (the part before .cloudflareaccess.com)
+      AC_ACCESS_AUD: "${AC_ACCESS_AUD:-}"       # Access application Audience (AUD) tag
+      AC_REQUIRE_AUTH: "${AC_REQUIRE_AUTH:-}"   # "1" = refuse even LAN requests without a valid Access token
+    restart: unless-stopped
+
+  cloudflared:                      # outbound-only tunnel: no open ports, no public IP needed
+    image: cloudflare/cloudflared:latest
+    profiles: ["public"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${TUNNEL_TOKEN:-}"          # from Zero Trust → Networks → Tunnels; cloudflared exits if empty
+    depends_on: [reader]
     restart: unless-stopped
 
   cli:

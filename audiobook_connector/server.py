@@ -1,17 +1,92 @@
-"""Static file server with HTTP Range support (required for <audio> seeking)."""
+"""Static file server with HTTP Range support (required for <audio> seeking), plus a tiny JSON API:
+
+  GET  /api/me                 → {"user": "<email>|local", "auth": "cloudflare|local"}
+  GET  /api/progress           → {slug: {id, f, t, ts}}        all books for this user
+  GET  /api/progress/<slug>    → {id, f, t, ts} or {}
+  POST /api/progress/<slug>    ← {id, f, t}                    saves reading position
+
+Progress is stored per user under <library>/_progress/<sha1(email)>.json. Identity comes from
+auth.identify(): Cloudflare Access JWT when present, else the anonymous "local" user."""
 from __future__ import annotations
-import http.server, mimetypes, os, re, urllib.parse
+import hashlib, http.server, json, mimetypes, os, re, threading, time, urllib.parse
+from . import auth
 mimetypes.add_type("audio/mp4", ".m4b"); mimetypes.add_type("audio/mp4", ".m4a")
 
-def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | None = None):
+def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | None = None,
+          verifier: auth.AccessVerifier | None = None, require_auth: bool = False):
     """Serve `root` (the library: data.json, audio, covers). The reader's HTML pages come from
     `app_dir` (the package's app/ folder) so the library holds data only and never goes stale."""
     ROOT = os.path.abspath(root)
     APP = os.path.abspath(app_dir) if app_dir else None
-    os.makedirs(ROOT, exist_ok=True)
+    PROG = os.path.join(ROOT, "_progress")
+    os.makedirs(PROG, exist_ok=True)
+    lock = threading.Lock()
+
+    def prog_file(user: str) -> str:
+        return os.path.join(PROG, hashlib.sha1(user.encode()).hexdigest()[:16] + ".json")
+
+    def load_prog(user: str) -> dict:
+        try:
+            with open(prog_file(user)) as f: return json.load(f)
+        except (OSError, ValueError):
+            return {"user": user, "books": {}}
+
     class H(http.server.BaseHTTPRequestHandler):
+        def _json(self, code: int, obj):
+            body = json.dumps(obj).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json"); self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
+
+        def _user(self):
+            user, source = auth.identify(self.headers, verifier, require_auth)
+            if user is None:
+                self._json(401, {"error": "sign in required"})
+            return user, source
+
+        def _api(self, path: str, body: dict | None):
+            user, source = self._user()
+            if user is None: return
+            if path == "api/me":
+                return self._json(200, {"user": user, "auth": source})
+            if path == "api/progress":
+                return self._json(200, load_prog(user)["books"])
+            m = re.fullmatch(r"api/progress/([A-Za-z0-9._-]+)", path)
+            if not m: return self._json(404, {"error": "unknown endpoint"})
+            slug = m.group(1)
+            if body is None:
+                return self._json(200, load_prog(user)["books"].get(slug, {}))
+            if source == "local":                       # anonymous LAN readers keep progress in the browser
+                return self._json(200, {"stored": False})
+            try:
+                rec = {"id": int(body["id"]), "f": int(body["f"]), "t": float(body["t"]), "ts": int(time.time())}
+            except (KeyError, TypeError, ValueError):
+                return self._json(400, {"error": "expected {id, f, t}"})
+            with lock:
+                d = load_prog(user); d["books"][slug] = rec
+                tmp = prog_file(user) + ".tmp"
+                with open(tmp, "w") as f: json.dump(d, f)
+                os.replace(tmp, prog_file(user))
+            return self._json(200, {"stored": True, **rec})
+
+        def do_POST(self):
+            path = urllib.parse.unquote(self.path.split("?")[0]).lstrip("/")
+            if not path.startswith("api/"): self.send_error(405); return
+            n = int(self.headers.get("Content-Length") or 0)
+            try: body = json.loads(self.rfile.read(n) or b"{}")
+            except ValueError: return self._json(400, {"error": "bad json"})
+            self._api(path, body if isinstance(body, dict) else {})
+        do_PUT = do_POST
+
         def do_GET(self):
             path = urllib.parse.unquote(self.path.split("?")[0]).lstrip("/") or "index.html"
+            if path.startswith("api/"):
+                return self._api(path, None)
+            if path.startswith("_progress"):            # never serve other users' progress files
+                self.send_error(404); return
+            if require_auth or (verifier and (self.headers.get("Cf-Ray") or self.headers.get("Cf-Connecting-Ip"))):
+                if auth.identify(self.headers, verifier, require_auth)[0] is None:
+                    self.send_error(401); return
             fp = os.path.abspath(os.path.join(ROOT, path))
             if os.path.isdir(fp): fp = os.path.join(fp, "index.html")
             if not fp.startswith(ROOT): self.send_error(404); return

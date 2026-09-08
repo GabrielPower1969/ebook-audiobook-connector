@@ -13,16 +13,20 @@ a.book:hover{transform:translateY(-3px)}
 .meta{padding:10px 12px}.meta b{display:block;font-size:15px}.meta span{color:var(--muted);font-size:13px}
 .bar{height:4px;background:var(--line)}.bar i{display:block;height:100%;background:var(--acc)}
 p.empty{color:var(--muted)}
+#user{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
 </style></head><body>
-<h1>书架</h1><div id="grid"></div>
+<h1>书架 <span id="user"></span></h1><div id="grid"></div>
 <script>
-fetch('index.json').then(r=>r.json()).then(bs=>{
+Promise.all([fetch('index.json').then(r=>r.json()),
+  fetch('api/me').then(r=>r.ok?r.json():{auth:'local'}).catch(()=>({auth:'local'})),
+  fetch('api/progress').then(r=>r.ok?r.json():{}).catch(()=>({}))]).then(([bs,me,prog])=>{
   const g=document.getElementById('grid');
+  if(me.auth==='cloudflare')document.getElementById('user').textContent=me.user;
   if(!bs.length){g.innerHTML='<p class="empty">还没有书。运行 <code>python -m audiobook_connector build &lt;目录&gt;</code></p>';return;}
   for(const b of bs){
     const a=document.createElement('a');a.className='book';a.href='reader.html?book='+encodeURIComponent(b.slug);
     const pct=Math.round(100*b.aligned/Math.max(1,b.paragraphs));
-    let pos=null;try{pos=JSON.parse(localStorage.getItem('pos:'+b.slug))}catch(e){}
+    let pos=prog[b.slug]||null;if(!pos)try{pos=JSON.parse(localStorage.getItem('pos:'+b.slug))}catch(e){}
     a.innerHTML=`<div class="cov">${b.cover?`<img src="${b.slug}/${b.cover}" alt="">`:''}</div>
       <div class="meta"><b></b><span></span><br><span>${b.files} 段音频 · ${pct}% 段落已对齐${pos?' · 继续阅读':''}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
     a.querySelector('b').textContent=b.title;a.querySelector('span').textContent=b.author||'';

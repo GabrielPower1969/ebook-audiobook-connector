@@ -30,6 +30,7 @@ button.pri{background:var(--acc);color:#fff;border-color:var(--acc);font-size:16
 #now{flex:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px}
 label{display:flex;gap:6px;align-items:center;color:var(--muted)}
+#user{color:var(--muted);font-size:12px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #menu{display:none}
 @media(max-width:800px){#app{grid-template-columns:1fr}#toc{display:none;position:fixed;top:0;left:0;bottom:0;width:min(80vw,320px);z-index:5;box-shadow:4px 0 24px rgba(0,0,0,.25)}#toc.open{display:block}#player{left:0}#main{padding:20px 16px 160px}#book .al::before{display:none}#menu{display:inline-block}}
 </style></head><body>
@@ -48,6 +49,7 @@ label{display:flex;gap:6px;align-items:center;color:var(--muted)}
   <span id="now">—</span>
   <label>速度 <select id="rate"><option>0.8</option><option selected>1</option><option>1.2</option><option>1.5</option><option>1.8</option><option>2</option></select></label>
   <label><input type="checkbox" id="follow" checked> 跟随滚动</label>
+  <span id="user" title="登录身份"></span>
  </div>
 </div>
 <audio id="a" preload="auto"></audio>
@@ -57,8 +59,26 @@ const a=$('#a'),book=$('#book'),toc=$('#toc'),main=$('#main');
 let D,seq=[],curIdx=-1,curFile=-1,TOPTAG='h1';
 const fmt=s=>{s=Math.max(0,s|0);const h=s/3600|0,m=(s%3600)/60|0,x=s%60;return (h?h+':':'')+String(m).padStart(h?2:1,'0')+':'+String(x).padStart(2,'0')};
 const SLUG=new URLSearchParams(location.search).get('book');const BASE=SLUG+'/';
-fetch(BASE+'data.json').then(r=>r.json()).then(d=>{D=d;document.title=d.title;render();restore();});
 const POSKEY='pos:'+SLUG;
+let ME={user:'local',auth:'local'},serverPos=null,lastSave=0;
+Promise.all([
+  fetch(BASE+'data.json').then(r=>r.json()),
+  fetch('api/me').then(r=>r.ok?r.json():ME).catch(()=>ME),
+  fetch('api/progress/'+encodeURIComponent(SLUG)).then(r=>r.ok?r.json():{}).catch(()=>({}))
+]).then(([d,me,pos])=>{D=d;ME=me;serverPos=pos&&pos.ts?pos:null;document.title=d.title;
+  $('#user').textContent=me.auth==='cloudflare'?me.user:'';render();restore();});
+function savePos(force){
+  if(curIdx<0||curFile<0)return;
+  const rec={id:curIdx,f:curFile,t:a.currentTime,ts:Date.now()};
+  localStorage.setItem(POSKEY,JSON.stringify(rec));
+  if(ME.auth!=='cloudflare')return;
+  const now=Date.now();if(!force&&now-lastSave<5000)return;lastSave=now;
+  const body=JSON.stringify(rec),url='api/progress/'+encodeURIComponent(SLUG);
+  if(force&&navigator.sendBeacon)navigator.sendBeacon(url,new Blob([body],{type:'application/json'}));
+  else fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body,keepalive:true}).catch(()=>{});
+}
+addEventListener('pagehide',()=>savePos(true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)savePos(true)});
 function render(){
   const frag=document.createDocumentFragment();
   toc.innerHTML='<a href="index.html" class="back">‹ 书架</a><h1></h1>';toc.querySelector('h1').textContent=D.title;
@@ -104,11 +124,11 @@ a.ontimeupdate=()=>{
   if(!D||curFile<0)return;
   const p=locate(curFile,a.currentTime);if(p)setCur(p.id);
   if(curIdx>=0){const el=document.getElementById('p'+curIdx);if(el)keepVisible(el);}
-  localStorage.setItem(POSKEY,JSON.stringify({id:curIdx,f:curFile,t:a.currentTime}));
+  savePos(false);
   $('#bar>div').style.width=(a.currentTime/a.duration*100||0)+'%';
   $('#now').textContent=`Part ${curFile+1}/${D.files.length} · ${fmt(a.currentTime)} / ${fmt(a.duration||0)}`;
 };
-a.onplay=()=>$('#play').textContent='❚❚';a.onpause=()=>$('#play').textContent='▶';
+a.onplay=()=>$('#play').textContent='❚❚';a.onpause=()=>{$('#play').textContent='▶';savePos(true);};
 a.onended=()=>{const n=seq.find(p=>p.t.f===curFile+1);if(n)playPara(n.id);};
 $('#play').onclick=()=>{if(curFile<0){if(seq.length)playPara(seq[0].id);return;}a.paused?a.play():a.pause();};
 const step=k=>{const i=seq.findIndex(p=>p.id===curIdx);const n=seq[i+k];if(n)playPara(n.id);};
@@ -123,7 +143,9 @@ document.addEventListener('keydown',e=>{if(e.target.tagName==='SELECT')return;
   else if(e.key==='ArrowLeft')$('#back').click();else if(e.key==='ArrowRight')a.currentTime+=10;
   else if(e.key==='j')step(1);else if(e.key==='k')step(-1);});
 function restore(){
-  try{const s=JSON.parse(localStorage.getItem(POSKEY));if(!s)return;
+  try{let s=null;try{s=JSON.parse(localStorage.getItem(POSKEY))}catch(e){}
+    if(serverPos&&(!s||(serverPos.ts||0)*1000>(s.ts||0)))s=serverPos;   // server ts is in seconds
+    if(!s)return;
     seek(s.f,s.t,false);setCur(s.id);
     const el=document.getElementById('p'+s.id);if(el)setTimeout(()=>main.scrollTop=el.offsetTop-main.clientHeight/2,50);
   }catch(e){}

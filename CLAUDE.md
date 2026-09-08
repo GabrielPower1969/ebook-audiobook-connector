@@ -14,8 +14,9 @@ Pipeline: `formats.py` (epub/mobi/azw3/pdf → paragraphs) → `transcribe.py` (
 docker compose up -d                         # reader container (target: server)
 docker compose --profile tools build cli     # whisper container; NOT built by plain `compose build`
 docker compose run --rm cli build <name>     # build inside Docker (Linux path)
+docker compose --profile public up -d        # + cloudflared tunnel; needs TUNNEL_TOKEN/AC_ACCESS_* in .env
 ```
-There is no test suite yet. Verify a change by rebuilding `zero-to-one` (transcripts are cached, ~5 s) and checking the printed `aligned:` line stays at 628/1256, then click a paragraph in the browser.
+There is no test suite yet. auth + API were verified end-to-end with openssl-generated keys (see git history of this line for the script idea: JWKS file via AC_ACCESS_CERTS_URL=file://…, curl the 15 cases). Verify a change by rebuilding `zero-to-one` (transcripts are cached, ~5 s) and checking the printed `aligned:` line stays at 628/1256, then click a paragraph in the browser.
 
 ## Layout
 ```
@@ -25,7 +26,8 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
   epub.py              .epub → [Para]; regex over spine HTML, no lxml. paras_from_html() is shared with formats.py
   transcribe.py        backends: mlx (Apple) / faster (anywhere); cache key = name|size|mtime
   align.py             pure function align(paras, transcripts) → {files, paras:[{f,s,e,d}|None], stats}
-  server.py            static HTTP with Range support; nothing else
+  server.py            static HTTP with Range support + JSON API (/api/me, /api/progress[/<slug>]); per-user progress in library/_progress/
+  auth.py              Cloudflare Access JWT verification (RS256 via pow(), stdlib only); identify() → email | "local" | denied
   app/index.html       bookshelf   app/reader.html  reader   (served straight from the package; library/ is data only)
 books/<name>/          INPUT: one .epub + audio files (+cover.jpg). git-ignored.
 library/<slug>/        OUTPUT: data.json, cover, audio/ (relative symlinks into books/). git-ignored.
@@ -41,6 +43,8 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - A paragraph is "aligned" only if it contains an exact anchor; headings may be within 3 tokens. Loosening this re-introduces false hits on the copyright page and index.
 - `align.align()` stays pure and framework-free so it can be unit-tested and reused.
 - Reader must run from a single HTML file with no build step and no external requests.
+- **Auth is Cloudflare Access, never home-grown.** Identity = verified `Cf-Access-Jwt-Assertion` email. Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
+- `library/_progress/` is per-user data: back it up, never serve it, never commit it.
 - `library/` holds data only (data.json, covers, audio links, index.json). Never copy code into it — an older container image would overwrite a newer host copy, or vice versa.
 
 ## Conventions

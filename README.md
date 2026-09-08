@@ -48,6 +48,29 @@ docker compose up -d
 
 Nothing is re-transcribed: the archive carries the transcripts, and the audio links inside `library/` are relative, so the folder works wherever it lands.
 
+## Public access with Google login (Cloudflare)
+
+Expose the reader on your own domain with sign-in, without opening a port or writing an account system: a **Cloudflare Tunnel** carries traffic to the container, and **Cloudflare Access** puts Google login in front of it. The reader verifies the token Access attaches to every request (RS256, standard library only) and stores each signed-in reader's position server-side, so they resume on any device. Anonymous LAN readers keep their position in the browser as before.
+
+One-time setup in the Cloudflare dashboard (your domain must be on Cloudflare):
+
+1. **Zero Trust → Settings → Authentication → Login methods → Add Google.** Cloudflare shows the redirect URL; create an OAuth client in Google Cloud Console with it and paste the client ID/secret back.
+2. **Zero Trust → Networks → Tunnels → Create a tunnel** (Cloudflared). Copy the token. Under *Public hostname* add `read.<your-domain>` → service `http://reader:8765`.
+3. **Zero Trust → Access → Applications → Add → Self-hosted.** Domain `read.<your-domain>`, identity provider Google, a policy allowing the emails (or the Google Workspace domain) you want. On the app's *Overview* copy the **Application Audience (AUD) tag**.
+4. On the server, put the three values in `.env`:
+
+```bash
+TUNNEL_TOKEN=eyJ...          AC_ACCESS_TEAM=<team name>          AC_ACCESS_AUD=<aud tag>
+```
+
+```bash
+docker compose --profile public up -d
+```
+
+Visiting `https://read.<your-domain>` now shows Google's login first. Requests that arrive through Cloudflare without a valid token are refused (fail closed); requests from the LAN without one stay anonymous, unless you set `AC_REQUIRE_AUTH=1`.
+
+Reading positions live in `library/_progress/<hash>.json`, one file per email — included in `scripts/backup.sh`.
+
 ## Backup & restore
 
 The same archive is the disaster-recovery plan. Three folders matter — `books/` (your files), `library/` (built output), `cache/transcripts/` (hours of whisper work); code lives in git.
@@ -93,7 +116,7 @@ audiobook-connector serve [--port 8765] [--host 0.0.0.0]
 audiobook-connector list
 ```
 
-Environment overrides: `AC_BOOKS` `AC_LIBRARY` `AC_CACHE` `AC_PORT` `AC_HOST` `AC_BACKEND` (this is how the Docker image is wired).
+Environment overrides: `AC_BOOKS` `AC_LIBRARY` `AC_CACHE` `AC_PORT` `AC_HOST` `AC_BACKEND`, plus `AC_ACCESS_TEAM` `AC_ACCESS_AUD` `AC_REQUIRE_AUTH` for Cloudflare Access (this is how the Docker image is wired).
 
 Optional extras: `[cpu]` faster-whisper · `[mlx]` mlx-whisper · `[formats]` pypdf + mobi. The core is pure standard library.
 
@@ -103,7 +126,7 @@ Optional extras: `[cpu]` faster-whisper · `[mlx]` mlx-whisper · `[formats]` py
 - PDF must have a text layer (no scans). Paragraph detection is heuristic; a running header that equals a chapter title is dropped with the header.
 - MOBI/AZW3 support is implemented but has not yet been exercised on a real file.
 - Whisper auto-detects the language; pass `--language zh` etc. to pin it. CJK is tokenized per character in the aligner, untested so far.
-- No authentication — meant for a trusted home network only.
+- Without Cloudflare Access there is no authentication — LAN mode is for a trusted home network only.
 - `books/`, `library/`, `cache/`, `backups/` are git-ignored: your books stay yours.
 
 ## 中文速览
@@ -118,6 +141,8 @@ docker compose up -d                         # 局域网里任何设备打开 ht
 Apple 芯片的 Mac 转写快 14 倍：本机 `pip install -e '.[mlx,formats]'` 后 `build`，再 `scripts/backup.sh` 打包，把 tgz 拷到服务器解开，`docker compose up -d` 即可，不会重新转写。同一个 tgz 就是灾备。
 
 阅读器里点任意段落即从该处播放，当前段高亮并跟随滚动；手机上 ☰ 打开目录。
+
+要开放到公网并用 Google 登录：域名托管在 Cloudflare，建 Tunnel + Access 应用（上面英文一节的 4 步），`.env` 填三个值，`docker compose --profile public up -d`。登录用户的阅读位置存在服务器上，换设备继续读。
 
 ## License
 

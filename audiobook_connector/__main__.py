@@ -11,7 +11,7 @@ Paths (override with env vars, which is how the Docker image is configured):
 """
 from __future__ import annotations
 import argparse, json, os, pathlib, re, shutil, socket, sys
-from . import formats, transcribe, align as aligner, server
+from . import auth, formats, transcribe, align as aligner, server
 
 PKG = pathlib.Path(__file__).parent
 BOOKS = pathlib.Path(os.environ.get("AC_BOOKS", "books"))
@@ -147,7 +147,11 @@ def cmd_serve(a):
     else:
         for u in _lan_urls(a.port):
             print(f"  LAN:    {u}")
-    server.serve(str(LIB), a.port, a.host, app_dir=str(PKG / "app"))
+    team, aud = os.environ.get("AC_ACCESS_TEAM", "").strip(), os.environ.get("AC_ACCESS_AUD", "").strip()
+    verifier = auth.AccessVerifier(team, aud, os.environ.get("AC_ACCESS_CERTS_URL") or None) if team and aud else None
+    require = os.environ.get("AC_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
+    print(f"  auth:   {'Cloudflare Access (' + team + ')' if verifier else 'none — LAN mode'}{', required for every request' if require else ''}")
+    server.serve(str(LIB), a.port, a.host, app_dir=str(PKG / "app"), verifier=verifier, require_auth=require)
 
 
 def cmd_list(a):
