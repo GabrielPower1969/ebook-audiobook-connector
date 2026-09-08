@@ -30,7 +30,8 @@ button.pri{background:var(--acc);color:#fff;border-color:var(--acc);font-size:16
 #now{flex:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 select{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px}
 label{display:flex;gap:6px;align-items:center;color:var(--muted)}
-@media(max-width:800px){#app{grid-template-columns:1fr}#toc{display:none}#player{left:0}#main{padding:20px 16px 160px}#book .al::before{display:none}}
+#menu{display:none}
+@media(max-width:800px){#app{grid-template-columns:1fr}#toc{display:none;position:fixed;top:0;left:0;bottom:0;width:min(80vw,320px);z-index:5;box-shadow:4px 0 24px rgba(0,0,0,.25)}#toc.open{display:block}#player{left:0}#main{padding:20px 16px 160px}#book .al::before{display:none}#menu{display:inline-block}}
 </style></head><body>
 <div id="app">
  <nav id="toc"></nav>
@@ -39,6 +40,7 @@ label{display:flex;gap:6px;align-items:center;color:var(--muted)}
 <div id="player">
  <div id="bar"><div></div></div>
  <div id="ctl">
+  <button id="menu" title="目录">☰</button>
   <button id="prev" title="上一段">⏮</button>
   <button id="play" class="pri">▶</button>
   <button id="next" title="下一段">⏭</button>
@@ -66,7 +68,7 @@ function render(){
     if(p.t){el.className='al';el.dataset.time=fmt(p.t.s);el.onclick=()=>playPara(p.id);}
     else el.className='na';
     frag.appendChild(el);
-    if(p.tag===TOP){const l=document.createElement('a');l.textContent=el.textContent;l.className=p.t?'':'na';l.onclick=()=>{main.scrollTop=el.offsetTop-24;};l.dataset.p=p.id;toc.appendChild(l);}
+    if(p.tag===TOP){const l=document.createElement('a');l.textContent=el.textContent;l.className=p.t?'':'na';l.onclick=()=>{main.scrollTop=el.offsetTop-24;toc.classList.remove('open');};l.dataset.p=p.id;toc.appendChild(l);}
   }
   book.appendChild(frag);
   seq=D.paras.filter(p=>p.t).sort((x,y)=>x.t.f-y.t.f||x.t.s-y.t.s);
@@ -110,6 +112,8 @@ a.onplay=()=>$('#play').textContent='❚❚';a.onpause=()=>$('#play').textConten
 a.onended=()=>{const n=seq.find(p=>p.t.f===curFile+1);if(n)playPara(n.id);};
 $('#play').onclick=()=>{if(curFile<0){if(seq.length)playPara(seq[0].id);return;}a.paused?a.play():a.pause();};
 const step=k=>{const i=seq.findIndex(p=>p.id===curIdx);const n=seq[i+k];if(n)playPara(n.id);};
+$('#menu').onclick=()=>toc.classList.toggle('open');
+main.addEventListener('click',()=>toc.classList.remove('open'));
 $('#prev').onclick=()=>step(-1);$('#next').onclick=()=>step(1);
 $('#back').onclick=()=>{a.currentTime=Math.max(0,a.currentTime-10)};
 $('#rate').onchange=e=>a.playbackRate=+e.target.value;

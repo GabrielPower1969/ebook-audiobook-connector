@@ -1,7 +1,16 @@
-.venv/
+# your books and everything derived from them — never committed
+books/*
+!books/.gitkeep
+library/*
+!library/.gitkeep
+cache/*
+!cache/.gitkeep
 source/
-library/
-cache/
 work/
+backups/
+
+.venv/
 __pycache__/
+*.egg-info/
+dist/
 .DS_Store

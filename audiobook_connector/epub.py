@@ -30,6 +30,21 @@ def _clean(inner: str) -> str:
 def _plain(h: str) -> str:
     return htmlmod.unescape(re.sub(r"<[^>]+>", "", h)).strip()
 
+def paras_from_html(src: str, href: str, paras: list[Para], chapter: str = "") -> str:
+    """Append block elements found in one HTML document to `paras`; returns the running chapter title."""
+    src = re.sub(r"<head>.*?</head>", "", src, flags=re.S | re.I)
+    blocks = BLOCK.findall(src)
+    if not blocks:  # div/li-based layouts
+        blocks = [("p", "", inner) for _, inner in DIV_FALLBACK.findall(src) if not DIV_FALLBACK.search(inner)]
+    for tag, _attrs, inner in blocks:
+        h = _clean(inner); t = _plain(h)
+        if not t: continue
+        tag = tag.lower()
+        if tag in ("h1", "h2"): chapter = t
+        paras.append(Para(len(paras), href, chapter, tag, h, t))
+    return chapter
+
+
 def parse_epub(path: str) -> Book:
     z = zipfile.ZipFile(path)
     container = ET.fromstring(z.read("META-INF/container.xml"))
@@ -46,16 +61,7 @@ def parse_epub(path: str) -> Book:
         full = posixpath.normpath(posixpath.join(opf_dir, href)) if opf_dir else href
         try: src = z.read(full).decode("utf-8", "replace")
         except KeyError: continue
-        src = re.sub(r"<head>.*?</head>", "", src, flags=re.S | re.I)
-        blocks = BLOCK.findall(src)
-        if not blocks:  # div/li-based layouts
-            blocks = [("p", "", inner) for _, inner in DIV_FALLBACK.findall(src) if not DIV_FALLBACK.search(inner)]
-        for tag, _attrs, inner in blocks:
-            h = _clean(inner); t = _plain(h)
-            if not t: continue
-            tag = tag.lower()
-            if tag in ("h1", "h2"): chapter = t
-            paras.append(Para(len(paras), href, chapter, tag, h, t))
+        chapter = paras_from_html(src, href, paras, chapter)
     return Book(title, author, paras)
 
 def book_to_dict(b: Book) -> dict:

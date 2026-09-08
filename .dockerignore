@@ -1,0 +1,11 @@
+.git
+.venv
+cache
+library
+books
+source
+work
+dist
+*.egg-info
+__pycache__
+.DS_Store

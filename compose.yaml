@@ -1,0 +1,24 @@
+# Reader on the LAN:            docker compose up -d
+# Build a book (no Mac needed): docker compose run --rm cli build <folder-under-books>
+services:
+  reader:
+    build: { context: ., target: server }
+    image: audiobook-connector:latest
+    container_name: audiobook-reader
+    user: "${AC_UID:-1000}:${AC_GID:-1000}"   # Linux: match your uid/gid (see README); macOS: any value works
+    ports:
+      - "${AC_PORT:-8765}:8765"
+    volumes:
+      - ./books:/app/books:ro       # your epub + audio, never modified
+      - ./library:/app/library      # built books, served from here
+    restart: unless-stopped
+
+  cli:
+    build: { context: ., target: cli }
+    image: audiobook-connector:cli
+    profiles: ["tools"]             # not started by `up`; use `docker compose run --rm cli ...`
+    user: "${AC_UID:-1000}:${AC_GID:-1000}"
+    volumes:
+      - ./books:/app/books:ro
+      - ./library:/app/library
+      - ./cache:/app/cache          # transcripts + downloaded whisper model, reused on rebuild
