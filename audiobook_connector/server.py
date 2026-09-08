@@ -13,7 +13,8 @@ from . import auth
 mimetypes.add_type("audio/mp4", ".m4b"); mimetypes.add_type("audio/mp4", ".m4a")
 
 def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | None = None,
-          verifier: auth.AccessVerifier | None = None, require_auth: bool = False):
+          verifier: auth.AccessVerifier | None = None, require_auth: bool = False,
+          proxy_secret: str | None = None):
     """Serve `root` (the library: data.json, audio, covers). The reader's HTML pages come from
     `app_dir` (the package's app/ folder) so the library holds data only and never goes stale."""
     ROOT = os.path.abspath(root)
@@ -39,7 +40,7 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
             self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
         def _user(self):
-            user, source = auth.identify(self.headers, verifier, require_auth)
+            user, source = auth.identify(self.headers, verifier, require_auth, proxy_secret)
             if user is None:
                 self._json(401, {"error": "sign in required"})
             return user, source
@@ -84,8 +85,8 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
                 return self._api(path, None)
             if path.startswith("_progress"):            # never serve other users' progress files
                 self.send_error(404); return
-            if require_auth or (verifier and (self.headers.get("Cf-Ray") or self.headers.get("Cf-Connecting-Ip"))):
-                if auth.identify(self.headers, verifier, require_auth)[0] is None:
+            if proxy_secret or require_auth or (verifier and (self.headers.get("Cf-Ray") or self.headers.get("Cf-Connecting-Ip"))):
+                if auth.identify(self.headers, verifier, require_auth, proxy_secret)[0] is None:
                     self.send_error(401); return
             fp = os.path.abspath(os.path.join(ROOT, path))
             if os.path.isdir(fp): fp = os.path.join(fp, "index.html")

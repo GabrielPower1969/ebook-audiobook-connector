@@ -71,6 +71,16 @@ Visiting `https://read.<your-domain>` now shows Google's login first. Requests t
 
 Reading positions live in `library/_progress/<hash>.json`, one file per email — included in `scripts/backup.sh`.
 
+## Behind an existing website login instead (trusted proxy)
+
+If you already run a site with its own accounts, let it front the reader on a path of the same origin (e.g. `example.com/read/*`): a server-side proxy checks the site's session, then forwards the request with two headers — `X-Flowgt-User: <email>` and `X-Flowgt-Proxy: <shared secret>`. Set the same secret on the reader:
+
+```bash
+AC_PROXY_SECRET=<long random string>       # in .env; the reader now refuses every request without it, LAN included
+```
+
+Identity comes from the header, positions are stored per email, and the tunnel hostname is useless to anyone but the proxy. The reference implementation is `functions/read/[[path]].js` in the flowgt-website repo (Cloudflare Pages Function, ~60 lines). Both modes cannot be active at once; `AC_PROXY_SECRET` wins.
+
 ## Backup & restore
 
 The same archive is the disaster-recovery plan. Three folders matter — `books/` (your files), `library/` (built output), `cache/transcripts/` (hours of whisper work); code lives in git.
@@ -116,7 +126,7 @@ audiobook-connector serve [--port 8765] [--host 0.0.0.0]
 audiobook-connector list
 ```
 
-Environment overrides: `AC_BOOKS` `AC_LIBRARY` `AC_CACHE` `AC_PORT` `AC_HOST` `AC_BACKEND`, plus `AC_ACCESS_TEAM` `AC_ACCESS_AUD` `AC_REQUIRE_AUTH` for Cloudflare Access (this is how the Docker image is wired).
+Environment overrides: `AC_BOOKS` `AC_LIBRARY` `AC_CACHE` `AC_PORT` `AC_HOST` `AC_BACKEND`, plus `AC_ACCESS_TEAM` `AC_ACCESS_AUD` `AC_REQUIRE_AUTH` for Cloudflare Access or `AC_PROXY_SECRET` for a trusted proxy (this is how the Docker image is wired).
 
 Optional extras: `[cpu]` faster-whisper · `[mlx]` mlx-whisper · `[formats]` pypdf + mobi. The core is pure standard library.
 

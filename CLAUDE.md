@@ -27,7 +27,7 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
   transcribe.py        backends: mlx (Apple) / faster (anywhere); cache key = name|size|mtime
   align.py             pure function align(paras, transcripts) → {files, paras:[{f,s,e,d}|None], stats}
   server.py            static HTTP with Range support + JSON API (/api/me, /api/progress[/<slug>]); per-user progress in library/_progress/
-  auth.py              Cloudflare Access JWT verification (RS256 via pow(), stdlib only); identify() → email | "local" | denied
+  auth.py              identify() → email | "local" | denied. Two sources: Cloudflare Access JWT (RS256 via pow(), stdlib only) or a trusted proxy (AC_PROXY_SECRET + X-Flowgt-User, used by flowgt.co.nz/read/*)
   app/index.html       bookshelf   app/reader.html  reader   (served straight from the package; library/ is data only)
 books/<name>/          INPUT: one .epub + audio files (+cover.jpg). git-ignored.
 library/<slug>/        OUTPUT: data.json, cover, audio/ (relative symlinks into books/). git-ignored.
@@ -43,7 +43,7 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - A paragraph is "aligned" only if it contains an exact anchor; headings may be within 3 tokens. Loosening this re-introduces false hits on the copyright page and index.
 - `align.align()` stays pure and framework-free so it can be unit-tested and reused.
 - Reader must run from a single HTML file with no build step and no external requests.
-- **Auth is Cloudflare Access, never home-grown.** Identity = verified `Cf-Access-Jwt-Assertion` email. Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
+- **Auth is never home-grown.** Identity is either a verified Cloudflare Access JWT email, or `X-Flowgt-User` from a proxy that proved itself with `AC_PROXY_SECRET` (constant-time compare; when the secret is set, every request without it is refused, LAN included). Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
 - `library/_progress/` is per-user data: back it up, never serve it, never commit it.
 - `library/` holds data only (data.json, covers, audio links, index.json). Never copy code into it — an older container image would overwrite a newer host copy, or vice versa.
 

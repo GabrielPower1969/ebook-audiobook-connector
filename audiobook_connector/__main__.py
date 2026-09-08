@@ -150,8 +150,12 @@ def cmd_serve(a):
     team, aud = os.environ.get("AC_ACCESS_TEAM", "").strip(), os.environ.get("AC_ACCESS_AUD", "").strip()
     verifier = auth.AccessVerifier(team, aud, os.environ.get("AC_ACCESS_CERTS_URL") or None) if team and aud else None
     require = os.environ.get("AC_REQUIRE_AUTH", "").lower() in ("1", "true", "yes")
-    print(f"  auth:   {'Cloudflare Access (' + team + ')' if verifier else 'none — LAN mode'}{', required for every request' if require else ''}")
-    server.serve(str(LIB), a.port, a.host, app_dir=str(PKG / "app"), verifier=verifier, require_auth=require)
+    proxy_secret = os.environ.get("AC_PROXY_SECRET", "").strip() or None
+    mode = ("trusted proxy only (X-Flowgt-Proxy)" if proxy_secret else
+            "Cloudflare Access (" + team + ")" if verifier else "none — LAN mode")
+    print(f"  auth:   {mode}{', required for every request' if require else ''}")
+    server.serve(str(LIB), a.port, a.host, app_dir=str(PKG / "app"), verifier=verifier,
+                 require_auth=require, proxy_secret=proxy_secret)
 
 
 def cmd_list(a):

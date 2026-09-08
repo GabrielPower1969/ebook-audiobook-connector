@@ -8,6 +8,12 @@ against the team's published keys and check aud / iss / exp — never trust the 
 Requests without a token (home LAN, no Cloudflare in the path) are the anonymous "local" user,
 whose progress stays in the browser. Requests that came *through* Cloudflare but carry no valid
 token are refused: that only happens when Access is misconfigured, so fail closed.
+
+Alternative: a trusted reverse proxy (the flowgt.co.nz Pages Function at /read/*) that has already
+authenticated the user. It forwards `X-Flowgt-User: <email>` and proves itself with
+`X-Flowgt-Proxy: <shared secret>`. When AC_PROXY_SECRET is set, every request must carry the
+secret — a request without it (LAN included) is refused, so the tunnel hostname is useless to
+anyone who is not the proxy.
 """
 from __future__ import annotations
 import base64, hashlib, hmac, json, threading, time, urllib.request
@@ -71,8 +77,15 @@ class AccessVerifier:
             return None
 
 
-def identify(headers, verifier: AccessVerifier | None, require_auth: bool = False):
-    """→ (user, source) where source is 'cloudflare' | 'local', or (None, 'denied')."""
+def identify(headers, verifier: AccessVerifier | None, require_auth: bool = False,
+             proxy_secret: str | None = None):
+    """→ (user, source) where source is 'proxy' | 'cloudflare' | 'local', or (None, 'denied')."""
+    if proxy_secret:
+        given = headers.get("X-Flowgt-Proxy") or ""
+        if not hmac.compare_digest(given, proxy_secret):
+            return None, "denied"
+        email = (headers.get("X-Flowgt-User") or "").strip().lower()
+        return (email, "proxy") if email else (None, "denied")
     token = headers.get("Cf-Access-Jwt-Assertion")
     if verifier and token:
         email = verifier.verify(token)

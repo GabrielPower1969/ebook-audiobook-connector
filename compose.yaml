@@ -16,6 +16,7 @@ services:
       AC_ACCESS_TEAM: "${AC_ACCESS_TEAM:-}"     # Cloudflare Zero Trust team name (the part before .cloudflareaccess.com)
       AC_ACCESS_AUD: "${AC_ACCESS_AUD:-}"       # Access application Audience (AUD) tag
       AC_REQUIRE_AUTH: "${AC_REQUIRE_AUTH:-}"   # "1" = refuse even LAN requests without a valid Access token
+      AC_PROXY_SECRET: "${AC_PROXY_SECRET:-}"   # set when flowgt.co.nz/read/* proxies here: only the proxy may talk to us
     restart: unless-stopped
 
   cloudflared:                      # outbound-only tunnel: no open ports, no public IP needed
