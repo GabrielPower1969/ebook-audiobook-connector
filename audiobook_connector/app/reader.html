@@ -317,7 +317,7 @@ function fmt(s){ s=Math.max(0,Math.floor(s||0));
   var h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
   return (h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(x).padStart(2,'0'); }
 function hms(s){ var h=Math.floor((s||0)/3600), m=Math.round((s||0)%3600/60);
-  return h?(h+' 小时 '+(m?m+' 分':'')):(m+' 分'); }
+  return h ? (h+' 小时'+(m?' '+m+' 分':'')) : (m+' 分'); }
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 function toast(t){ var el=$('#toast'); el.textContent=t; el.classList.add('on');

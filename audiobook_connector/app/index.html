@@ -160,7 +160,7 @@ $('#themebtn').onclick=function(){
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 function hms(s){ var h=Math.floor((s||0)/3600), m=Math.round((s||0)%3600/60);
-  return h?(h+' 小时'+(m?' '+m+' 分':'')):(m+' 分'); }
+  return h ? (h+' 小时'+(m?' '+m+' 分':'')) : (m+' 分'); }
 
 var BOOKS=[], PROG={};
 Promise.all([
