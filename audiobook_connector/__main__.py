@@ -14,7 +14,7 @@ Paths (override with env vars, which is how the Docker image is configured):
   AC_CACHE    transcripts + whisper models default ./cache
 """
 from __future__ import annotations
-import argparse, json, os, pathlib, re, shutil, socket, sys
+import argparse, gzip, json, os, pathlib, re, shutil, socket, sys
 from . import auth, formats, transcribe, align as aligner, server
 
 PKG = pathlib.Path(__file__).parent
@@ -128,6 +128,10 @@ def cmd_build(a):
                "paras": [{"id": p.id, "tag": p.tag, "html": p.html, "t": t}
                          for p, t in zip(book.paras, al["paras"])]},
               open(out / "data.json", "w"), ensure_ascii=False)
+    # A 9,000-paragraph volume is a multi-megabyte JSON. Ship a pre-compressed copy the server can
+    # hand to any client that accepts gzip — it is ~5x smaller and costs nothing at request time.
+    with open(out / "data.json", "rb") as fh, gzip.open(out / "data.json.gz", "wb", 6) as gz:
+        shutil.copyfileobj(fh, gz)
     _write_index()
     print(f"built:   {out}\nnext:    audiobook-connector serve")
 

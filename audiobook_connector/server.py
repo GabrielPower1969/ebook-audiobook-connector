@@ -126,15 +126,23 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
             if not os.path.isfile(fp) and APP and path.endswith(".html") and "/" not in path:
                 fp = os.path.join(APP, path)            # index.html / reader.html live in the package
             if not os.path.isfile(fp): self.send_error(404); return
+            ctype = mimetypes.guess_type(fp)[0] or "application/octet-stream"
+            # Pre-compressed sibling (build writes data.json.gz). Only without a Range request:
+            # a byte range of the compressed stream is not a byte range of the file.
+            enc = None
+            rng = self.headers.get("Range")
+            if not rng and "gzip" in (self.headers.get("Accept-Encoding") or "") and os.path.isfile(fp + ".gz"):
+                fp, enc = fp + ".gz", "gzip"
             size = os.path.getsize(fp); start, end = 0, size - 1
-            m = re.match(r"bytes=(\d*)-(\d*)", self.headers.get("Range") or "")
+            m = re.match(r"bytes=(\d*)-(\d*)", rng or "")
             if m:
                 if m.group(1): start = int(m.group(1)); end = int(m.group(2)) if m.group(2) else size - 1
                 else: start = size - int(m.group(2))
                 end = min(end, size - 1); self.send_response(206)
                 self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             else: self.send_response(200)
-            self.send_header("Content-Type", mimetypes.guess_type(fp)[0] or "application/octet-stream")
+            self.send_header("Content-Type", ctype)
+            if enc: self.send_header("Content-Encoding", enc)
             self.send_header("Accept-Ranges", "bytes"); self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Cache-Control", "no-cache"); self.end_headers()
             with open(fp, "rb") as f:
