@@ -66,3 +66,37 @@ def parse_epub(path: str) -> Book:
 
 def book_to_dict(b: Book) -> dict:
     return {"title": b.title, "author": b.author, "paras": [asdict(p) for p in b.paras]}
+
+
+COVER_MIME = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
+
+
+def cover_bytes(path: str) -> tuple[bytes, str] | None:
+    """The cover image out of an .epub, as (bytes, extension), or None.
+
+    Three places declare it, in decreasing reliability: an EPUB 3 manifest item with
+    properties="cover-image"; an EPUB 2 <meta name="cover" content="<manifest-id>">; and failing
+    both, the first manifest image whose href looks like a cover."""
+    try:
+        z = zipfile.ZipFile(path)
+        opf_path = ET.fromstring(z.read("META-INF/container.xml")).find(".//c:rootfile", NS).get("full-path")
+        opf_dir = posixpath.dirname(opf_path)
+        opf = ET.fromstring(z.read(opf_path))
+        items = list(opf.find("o:manifest", NS))
+        by_id = {i.get("id"): i for i in items}
+
+        item = next((i for i in items if "cover-image" in (i.get("properties") or "")), None)
+        if item is None:
+            m = next((m for m in opf.iter() if m.tag.endswith("meta") and m.get("name") == "cover"), None)
+            item = by_id.get(m.get("content")) if m is not None else None
+        if item is None:
+            item = next((i for i in items
+                         if (i.get("media-type") or "") in COVER_MIME and "cover" in (i.get("href") or "").lower()), None)
+        if item is None:
+            return None
+        href = item.get("href")
+        full = posixpath.normpath(posixpath.join(opf_dir, href)) if opf_dir else href
+        ext = COVER_MIME.get(item.get("media-type") or "", posixpath.splitext(href)[1].lower() or ".jpg")
+        return z.read(full), ext
+    except Exception:
+        return None

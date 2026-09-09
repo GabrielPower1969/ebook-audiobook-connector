@@ -136,6 +136,17 @@ def cmd_build(a):
     print(f"built:   {out}\nnext:    audiobook-connector serve")
 
 
+def _chapter_count(paras: list[dict]) -> int:
+    """Same rule the reader uses to build its table of contents: the highest heading level that
+    appears at least three times. A book whose audio is one file per chapter gets h1 from
+    mark_chapters(); one split into "Part 01…Part 08" has only its own h2 headings."""
+    for tag in ("h1", "h2", "h3"):
+        n = sum(1 for p in paras if p["tag"] == tag)
+        if n >= 3:
+            return n
+    return 0
+
+
 def _write_index():
     LIB.mkdir(parents=True, exist_ok=True)
     books = []
@@ -148,7 +159,7 @@ def _write_index():
         books.append({"slug": d.name, "title": x["title"], "author": x.get("author", ""), "cover": cover,
                       "series": x.get("series", ""), "volume": x.get("volume"), "narrator": x.get("narrator", ""),
                       "files": len(x["files"]), "seconds": round(sum(x.get("durations", []))),
-                      "chapters": sum(1 for p in x["paras"] if p["tag"] == "h1"),
+                      "chapters": _chapter_count(x["paras"]),
                       "aligned": x["stats"]["aligned"], "paragraphs": x["stats"]["paragraphs"]})
     books.sort(key=lambda b: (b["series"] or "~", b["volume"] or 0, b["title"]))
     json.dump(books, open(LIB / "index.json", "w"), ensure_ascii=False)

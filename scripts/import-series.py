@@ -10,8 +10,8 @@ it prints before answering the confirmation.
 
 Audio and book files are **hard-linked**, never copied: no extra disk, and name+size+mtime are
 identical, which is exactly the transcript cache key. A cross-device link falls back to copy2,
-which preserves mtime for the same reason. Covers are lifted from page 1 of a PDF when Pillow is
-available (`pip install 'pypdf[image]'`), otherwise from a cover.* file sitting next to the book.
+which preserves mtime for the same reason. Covers come from the book itself — an EPUB's declared cover
+image, or page 1 of a PDF (which needs Pillow) — else from a cover.* file next to it.
 """
 from __future__ import annotations
 import argparse, json, os, pathlib, re, shutil, sys
@@ -37,13 +37,20 @@ def link(src: pathlib.Path, dst: pathlib.Path):
         shutil.copy2(src, dst)          # copy2 keeps mtime, so the transcript cache still matches
 
 
-def pdf_cover(book: pathlib.Path) -> bytes | None:
+def book_cover(book: pathlib.Path) -> tuple[bytes, str] | None:
+    """Cover art out of the book itself: the declared cover image of an EPUB, or the first image
+    on page 1 of a PDF (which needs Pillow — `pip install 'pypdf[image]'`)."""
+    if book.suffix.lower() == ".epub":
+        import sys as _sys
+        _sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from audiobook_connector.epub import cover_bytes
+        return cover_bytes(str(book))
     if book.suffix.lower() != ".pdf":
         return None
     try:
         from pypdf import PdfReader
         img = next(iter(PdfReader(str(book)).pages[0].images), None)
-        return img.data if img else None
+        return (img.data, ".jpg") if img else None
     except Exception as e:                                  # Pillow missing, encrypted, no image
         print(f"  (no cover from {book.name}: {e})")
         return None
@@ -90,9 +97,11 @@ def main():
         for f in sorted((f for f in ad.iterdir() if f.suffix.lower() in AUDIO_EXT), key=natural):
             link(f, out / f.name)
         link(bf, out / f"{prefix}{i}{bf.suffix.lower()}")
-        data = pdf_cover(bf)
-        if data:
-            (out / "cover.jpg").write_bytes(data)
+        got = book_cover(bf)
+        if got:
+            for old in out.glob("cover.*"):
+                old.unlink()
+            (out / ("cover" + got[1])).write_bytes(got[0])
         else:
             src_cov = next((c for c in sorted(bf.parent.glob("cover.*"))), None)
             if src_cov:
@@ -101,7 +110,7 @@ def main():
         if a.narrator: meta["narrator"] = a.narrator
         if a.language: meta["language"] = a.language
         json.dump(meta, open(out / "book.json", "w"), ensure_ascii=False, indent=1)
-        print(f"  {out}: {n} audio, cover={'yes' if (out / 'cover.jpg').exists() else 'no'}")
+        print(f"  {out}: {n} audio, cover={'yes' if list(out.glob('cover.*')) else 'no'}")
     print(f"\nnext:\n  audiobook-connector transcribe {' '.join(str(p[5]) for p in plan)}\n"
           f"  audiobook-connector build <name>   # once per volume, seconds off the cache")
 

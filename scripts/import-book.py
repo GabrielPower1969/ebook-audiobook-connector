@@ -10,7 +10,8 @@ for the sample tracks and whole-book concatenations that sit beside the real one
 otherwise be transcribed twice and align the book against itself.
 
 Audio and book are hard-linked, never copied: no extra disk, and name+size+mtime stay identical,
-which is exactly the transcript cache key. Covers come from a cover.* file, else page 1 of a PDF.
+which is exactly the transcript cache key. Covers come from a cover.* file beside the source, else from the book itself (an EPUB's
+declared cover image, or page 1 of a PDF).
 
 For a multi-volume set use import-series.py instead.
 """
@@ -39,13 +40,20 @@ def link(src: pathlib.Path, dst: pathlib.Path):
         shutil.copy2(src, dst)          # copy2 keeps mtime, so the transcript cache still matches
 
 
-def pdf_cover(book: pathlib.Path) -> bytes | None:
+def book_cover(book: pathlib.Path) -> tuple[bytes, str] | None:
+    """Cover art out of the book itself: the declared cover image of an EPUB, or the first image
+    on page 1 of a PDF (which needs Pillow — `pip install 'pypdf[image]'`)."""
+    if book.suffix.lower() == ".epub":
+        import sys as _sys
+        _sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+        from audiobook_connector.epub import cover_bytes
+        return cover_bytes(str(book))
     if book.suffix.lower() != ".pdf":
         return None
     try:
         from pypdf import PdfReader
         img = next(iter(PdfReader(str(book)).pages[0].images), None)
-        return img.data if img else None
+        return (img.data, ".jpg") if img else None
     except Exception:
         return None                     # Pillow missing, encrypted, or no image on page 1
 
@@ -89,9 +97,11 @@ def main():
         if cov:
             shutil.copy2(cov, out / ("cover" + cov.suffix.lower()))
         else:
-            data = pdf_cover(book)
-            if data:
-                (out / "cover.jpg").write_bytes(data)
+            got = book_cover(book)
+            if got:
+                for old in out.glob("cover.*"):
+                    old.unlink()
+                (out / ("cover" + got[1])).write_bytes(got[0])
         meta = {"title": title, "author": a.author, "slug": slug}
         if a.narrator: meta["narrator"] = a.narrator
         if a.language: meta["language"] = a.language

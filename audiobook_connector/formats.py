@@ -162,6 +162,27 @@ def _standalone_headings(lines: list[str]) -> set[int]:
     return out
 
 
+def _drop_running_headings(paras: list[Para]) -> list[Para]:
+    """Drop repeats of a heading that recurs through the book.
+
+    Some PDFs print the chapter title at the top of every page of that chapter. The frequency
+    filter that removes running headers cannot catch it — over a 300-page book a 15-page chapter
+    title only reaches 5 % of pages — but a chapter title is unique by definition, so a heading
+    seen three or more times is page furniture. Keep the first, drop the rest, renumber."""
+    counts = Counter(p.text for p in paras if p.tag != "p")
+    seen: set[str] = set()
+    out: list[Para] = []
+    for p in paras:
+        if p.tag != "p" and counts[p.text] >= 3:
+            if p.text in seen:
+                continue
+            seen.add(p.text)
+        out.append(p)
+    for i, p in enumerate(out):
+        p.id = i
+    return out
+
+
 def _parse_pdf(path: pathlib.Path) -> Book:
     """Text PDFs only (not scans). Uses pypdf's layout mode, where vertical white space shows up as
     blank lines: the most common blank-run length is ordinary line spacing, anything longer is a
@@ -253,4 +274,4 @@ def _parse_pdf(path: pathlib.Path) -> Book:
                 flush()
         prev_full = full
     flush()
-    return Book(title, author, paras)
+    return Book(title, author, _drop_running_headings(paras))
