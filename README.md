@@ -83,11 +83,15 @@ Identity comes from the header, positions are stored per email, and the tunnel h
 
 ## Backup & restore
 
-The same archive is the disaster-recovery plan. Three folders matter — `books/` (your files), `library/` (built output), `cache/transcripts/` (hours of whisper work); code lives in git.
 
 ```bash
-scripts/backup.sh /path/to/backups      # model weights are skipped, they re-download
+scripts/backup.sh /path/to/backups      # library/ + cache/transcripts/, ~16 MB, verified
+scripts/backup.sh /path/to/backups --with-books   # add books/, for a standalone archive
 ```
+
+By default the archive holds `library/` (built books, covers, and `library/_progress/` — reading positions and saved passages, which exist nowhere else) and `cache/transcripts/` (hours of whisper compute, the one thing that is expensive to recreate). `books/` is left out because its files are usually hard links into a library you already keep; pass `--with-books` when the archive has to stand on its own. Model weights are always skipped — they re-download.
+
+The script reads the archive back and checks two expected members before reporting success. An archive nobody opened is not a backup.
 
 Restore on any Linux or Mac: clone, `tar xzf` inside the clone, `docker compose up -d`.
 
@@ -104,6 +108,10 @@ Restore on any Linux or Mac: clone, `tar xzf` inside the clone, `docker compose 
 Chapter titles come from the audio file names — `Chapter 03 - The Knight Bus.mp3` — matched fuzzily and in order against the headings found in the book. One audio file is one chapter, so the table of contents and the player never disagree, and a heading heuristic that also picks up letter signatures and newspaper headlines cannot pollute the chapter list. If fewer than 60 % of the titles match, none are used.
 
 A paragraph is clickable only if it contains an exactly-anchored word; front matter, index and skipped captions show greyed out.
+
+**The transcript never reaches the page.** Every word you read comes from the book file. whisper's output is a ruler used to find timings and is then discarded — a paragraph in `data.json` carries the book's own text plus `{file, start, end}`, nothing else. Anchors must be n-grams that occur exactly once on *both* sides, an ambiguous phrase is dropped rather than guessed, and a paragraph with no anchor gets no timestamp and renders greyed rather than a wrong one.
+
+`scripts/verify-text.py` checks that from the other direction: for each aligned paragraph it measures how much of the book's token sequence actually appears in the audio over that span. On the eight books built here — 32291 paragraphs — the median coverage is 1.000 and 93.6 % reach 0.90.
 
 Measured on *Zero to One* (4 h 45 min): 519 of 528 body paragraphs anchored exactly, the 9 misses all figure captions. PDF input on a synthetic 17-page fixture: 101 of 106 paragraphs recovered exactly.
 
@@ -133,6 +141,13 @@ audiobook-connector build <dir|name> [--title T] [--author A] [--slug S] [--lang
                                      [--model large-v3-turbo] [--backend auto|mlx|faster]
                                      [--audio symlink|hardlink|copy]
 audiobook-connector transcribe <dir|name>...        # fill the cache only, nothing else
+
+scripts/import-book.py   <src-dir>...     one title: a folder with a book and its audio
+scripts/import-series.py <audio> <books>  a multi-volume set, paired in order
+scripts/cache-status.py  <book-dir>...    how much of each book is transcribed
+scripts/build-ready.py   <book-dir>...    build every book whose audio is fully transcribed
+scripts/verify-text.py   [<slug>...]      cross-check the displayed text against the audio
+scripts/backup.sh        [dest] [--with-books]
 audiobook-connector serve [--port 8765] [--host 0.0.0.0]
 audiobook-connector list
 ```
