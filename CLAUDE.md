@@ -17,6 +17,20 @@ docker compose --profile tools build cli     # whisper container; NOT built by p
 docker compose run --rm cli build <name>     # build inside Docker (Linux path)
 docker compose --profile public up -d        # + cloudflared tunnel; needs TUNNEL_TOKEN/AC_ACCESS_* in .env
 ```
+Before committing hours to transcription, check the book parses: a DRM-stripped EPUB can be a
+392-word stub while the PDF beside it holds the whole text, and that costs nothing to find out.
+
+```bash
+.venv/bin/python -c "
+import pathlib,sys; sys.path.insert(0,'.')
+from audiobook_connector import formats
+b=formats.parse_book(formats.find_book(pathlib.Path('books/<name>')))
+ls=sorted(len(x.text.split()) for x in b.paras)
+print(len(b.paras),'paras', sum(ls),'words, median', ls[len(ls)//2])"
+```
+Under ~5000 words means the file is a stub; a median over ~120 words per paragraph means the
+paragraph splitting failed and click granularity will be coarse.
+
 There is no test suite yet. auth + API were verified end-to-end with openssl-generated keys (see git history of this line for the script idea: JWKS file via AC_ACCESS_CERTS_URL=file://…, curl the 15 cases). Verify a change by rebuilding `zero-to-one` (transcripts are cached, ~5 s) and checking the printed `aligned:` line stays at 628/1256, then click a paragraph in the browser.
 
 ## Layout
@@ -28,10 +42,14 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
   epub.py              .epub → [Para]; regex over spine HTML, no lxml. paras_from_html() is shared with formats.py
   transcribe.py        backends: mlx (Apple) / faster (anywhere); cache key = name|size|mtime
   align.py             pure function align(paras, transcripts) → {files, paras:[{f,s,e,d}|None], stats}
-  server.py            static HTTP with Range support + JSON API (/api/me, /api/progress[/<slug>], /api/marks[/<slug>]); per-user progress + saved passages in library/_progress/
+  server.py            static HTTP with Range support, pre-compressed .gz siblings + JSON API (/api/me, /api/progress[/<slug>], /api/marks[/<slug>]); per-user progress + saved passages in library/_progress/
   auth.py              identify() → email | "local" | denied. Two sources: Cloudflare Access JWT (RS256 via pow(), stdlib only) or a trusted proxy (AC_PROXY_SECRET + X-Flowgt-User, used by flowgt.co.nz/read/*)
   app/index.html       bookshelf: series grouping, continue-reading, search   (served straight from the package; library/ is data only)
   app/reader.html      reader: TOC, full-text search, saved passages, four themes (auto/light/dark/e-ink), type controls, sleep timer, Media Session
+scripts/               import-book.py  one title      import-series.py  a multi-volume set
+                       cache-status.py how far transcription got   build-ready.py  build what is ready
+                       verify-text.py  cross-check the shown text against the audio
+                       backup.sh       library + transcripts, verified, ~16 MB
 books/<name>/          INPUT: one .epub + audio files (+cover.jpg, +book.json). git-ignored.
                        book.json: title, author, series, volume, narrator, language, chapters[]
 library/<slug>/        OUTPUT: data.json, cover, audio/ (relative symlinks into books/). git-ignored.
@@ -50,6 +68,9 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - Chapter titles come from the audio file names, not from the book's own headings: one audio file is one chapter, so the TOC and the player agree. `mark_chapters()` commits all-or-nothing (a <60% match rate means those were never chapter titles) and guards containment matches by length ratio (without it "HOGWARTS" swallows "The Battle of Hogwarts" and every later chapter shifts by one).
 - **Auth is never home-grown.** Identity is either a verified Cloudflare Access JWT email, or `X-Flowgt-User` from a proxy that proved itself with `AC_PROXY_SECRET` (constant-time compare; when the secret is set, every request without it is refused, LAN included). Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
 - `library/_progress/` is per-user data: back it up, never serve it, never commit it.
+- **The transcript never reaches the reader.** `data.json` paragraphs carry `id/tag/html/t` only —
+  `html` is the book's own text and `t` is `{f,s,e,d}`. whisper output is a ruler for timings and
+  nothing else. Anything that would put transcript text on screen breaks the core promise.
 - `library/` holds data only (data.json, covers, audio links, index.json). Never copy code into it — an older container image would overwrite a newer host copy, or vice versa.
 
 ## Conventions
@@ -63,6 +84,19 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - PDF input is heuristic (tested on a synthetic reportlab fixture only); MOBI/AZW3 path is untested until a real file arrives. Scanned PDFs (no text layer) are not supported.
 - CPU transcription (Docker) runs at about real time: measured 60 s of audio → 65 s, large-v3-turbo int8, 4 threads, Docker on an M-series Mac. mlx on the same Mac: ~14× real time. Recommend `--model small` on CPU or building once on Apple Silicon.
 - No auth on the server — it is meant for a trusted LAN only.
+
+## Text verification
+
+`scripts/verify-text.py` turns the transcript around and uses it as an independent witness: for
+each aligned paragraph it measures how much of the book's token sequence appears in the audio over
+that paragraph's span. Across 32291 paragraphs in eight books the median coverage is 1.000 and
+93.6 % reach 0.90; 16 paragraphs (0.05 %) fall under 0.55 and every one of them is dialect
+("Yeh all righ', Harry?"), a mouth-full mumble, or a number the book spells out and whisper writes
+as digits — the aligner's `NUM` map only covers 0-10, a known gap. Read a low score as a prompt to
+look, not as a verdict: it can equally mean whisper misheard.
+
+Regenerate with `scripts/verify-text.py --report reports/text-verification.md` (reports/ is
+git-ignored).
 
 ## Status 2026-09-09 — Harry Potter series
 
