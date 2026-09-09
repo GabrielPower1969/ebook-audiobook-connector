@@ -66,12 +66,20 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 
 ## Status 2026-09-09 — Harry Potter series
 
-`books/hp1..hp7` (Stephen Fry, 125 h of audio, 199 chapters) build from the seven PDFs plus one
-mp3 per chapter. Chapter detection: 199/199, no header text leaking into paragraphs.
-Transcription is ~12x real time with mlx on Apple Silicon, so the series takes ~10.5 h — run
-`scripts/run-transcribe-hp.sh` in the background first, then `build` finishes in seconds off the
-cache. `scripts/setup-hp.py` is the (machine-specific, uncommitted-input) example of laying a
-series out: hard links so the transcript cache key survives, cover lifted from PDF page 1.
+`books/hp1..hp7` (Stephen Fry, 125 h of audio, 199 chapters) built from the seven PDFs plus one
+mp3 per chapter. Chapter detection: **199/199**, no header text left in the prose. Volume 1
+aligns **3005/3075 paragraphs (98 %, 2643 exact)** — an American-edition PDF against a British
+narration, so the n-gram anchors survive a fair number of word-level differences.
+
+Transcription is ~12x real time with mlx on Apple Silicon, so the set takes ~10.5 h:
+
+```bash
+scripts/import-series.py <audio-root> <book-root> --series "…" --prefix hp --narrator "…"
+.venv/bin/audiobook-connector transcribe books/hp1-* books/hp2-* …    # hours, run in background
+.venv/bin/python scripts/build-ready.py --watch 300 books/hp*         # builds each as it lands
+.venv/bin/python scripts/cache-status.py books/hp*                    # how far along it is
+```
+The transcript cache makes an interrupted run free to resume — rerun the same command.
 
 ## Status 2026-09-08 — handing off to another Mac
 

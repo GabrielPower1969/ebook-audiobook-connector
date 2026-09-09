@@ -195,8 +195,10 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
 #toast.on{opacity:.95}
 #resume{position:absolute;left:50%;transform:translateX(-50%);top:14px;z-index:20;background:var(--raised);
         border:1px solid var(--line);box-shadow:var(--shadow);border-radius:999px;padding:7px 8px 7px 16px;
-        display:none;align-items:center;gap:10px;font-size:13.5px;max-width:calc(100% - 32px)}
+        display:none;align-items:center;gap:10px;font-size:13.5px;max-width:calc(100% - 24px);
+        white-space:nowrap}
 #resume.on{display:flex}
+#resume .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis}
 #resume b{font-weight:600}
 #resume button{padding:5px 12px;border-radius:999px;border:1px solid var(--line);font-size:13px}
 #resume .go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -210,6 +212,10 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
   #railbtn{display:inline-flex}
   #book{padding:3vh 6px 40vh}
   #book p,#book h1,#book h2{padding-left:10px;padding-right:10px}
+  /* justified text on a phone-width column opens rivers between the words */
+  #book p{text-align:left}
+  #resume{top:8px;padding:6px 6px 6px 12px;font-size:12.5px;gap:6px}
+  #resume button{padding:5px 10px;font-size:12.5px}
   #book .al::before{display:none}
   #clock{display:none}
 }
@@ -320,7 +326,10 @@ function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
 
 /* ---------------------------------------------------------------- preferences */
-var P=Object.assign({theme:'auto',font:'serif',size:19,lead:1.78,wide:34,indent:0,follow:1,sleep:0},
+// A 19px serif over a 375px column leaves about six words per line. Start smaller on a phone;
+// the reader can still set whatever they like, and that choice is what gets stored.
+var P=Object.assign({theme:'auto', font:'serif', size:(screen.width<600?17:19),
+                     lead:1.78, wide:34, indent:0, follow:1, sleep:0},
                     lsGet(PREFKEY,{}));
 function applyPrefs(){
   var r=document.documentElement.style;
@@ -611,7 +620,7 @@ function restore(server){
   } else restoring=false;
   var ch=CH[chapterOf(s.id)];
   var r=$('#resume');
-  r.innerHTML='上次读到 <b></b>　'+
+  r.innerHTML='<span class="lbl">上次读到 <b></b></span>'+
     '<button class="go">继续朗读</button><button class="x">从头</button>';
   r.querySelector('b').textContent=nicecase(ch?ch.title:'') + (s.t?(' · '+fmt(s.t)):'');
   r.classList.add('on');
