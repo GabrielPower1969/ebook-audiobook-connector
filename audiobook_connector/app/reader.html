@@ -2,6 +2,7 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" href="favicon.ico">
 <title>阅读器</title>
 <!-- Single file, no build step, no external request: this page has to open on a Kindle
      experimental browser and on a Boox e-ink tablet, where a webfont fetch is a blank screen.
@@ -15,7 +16,7 @@
   --paper:#FBF9F5; --raised:#FFFFFF; --ink:#16211C; --ink-2:#46554E; --muted:#78867F;
   --line:#E5E2D9; --line-2:#EFEDE6;
   --accent:#00694B; --accent-ink:#FFFFFF; --accent-soft:#E8F3EE;
-  --now:#E4F0EA; --mark:#FBEBC0; --mark-line:#E0B94A;
+  --now:#EDF5F1; --now-s:#CFE7DC; --mark:#FBEBC0; --mark-line:#E0B94A; --word:#DCEAFB;
   --shadow:0 1px 2px rgba(20,32,26,.06),0 12px 32px rgba(20,32,26,.10);
   --radius:10px; --speed:.16s;
 
@@ -26,7 +27,7 @@
   --paper:#0E1411; --raised:#151D19; --ink:#E5ECE8; --ink-2:#B0BCB6; --muted:#7F8D87;
   --line:#22302A; --line-2:#1A241F;
   --accent:#5BC79E; --accent-ink:#06120D; --accent-soft:#16241E;
-  --now:#17251F; --mark:#3E3719; --mark-line:#8A7526;
+  --now:#15211C; --now-s:#224234; --mark:#3E3719; --mark-line:#8A7526; --word:#1B2A3A;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.45);
 }
 @media (prefers-color-scheme:dark){
@@ -34,7 +35,7 @@
     --paper:#0E1411; --raised:#151D19; --ink:#E5ECE8; --ink-2:#B0BCB6; --muted:#7F8D87;
     --line:#22302A; --line-2:#1A241F;
     --accent:#5BC79E; --accent-ink:#06120D; --accent-soft:#16241E;
-    --now:#17251F; --mark:#3E3719; --mark-line:#8A7526;
+    --now:#15211C; --now-s:#224234; --mark:#3E3719; --mark-line:#8A7526; --word:#1B2A3A;
     --shadow:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.45);
   }
 }
@@ -44,7 +45,7 @@
   --paper:#FFFFFF; --raised:#FFFFFF; --ink:#000000; --ink-2:#000000; --muted:#444444;
   --line:#000000; --line-2:#AAAAAA;
   --accent:#000000; --accent-ink:#FFFFFF; --accent-soft:#EDEDED;
-  --now:#E4E4E4; --mark:#D6D6D6; --mark-line:#000000;
+  --now:#F0F0F0; --now-s:#D2D2D2; --mark:#D6D6D6; --mark-line:#000000; --word:#DCDCDC;
   --shadow:none; --radius:0px; --speed:0s;
 }
 :root[data-theme="eink"] *{transition:none!important;animation:none!important}
@@ -58,23 +59,31 @@ button,select,input{font:inherit;color:inherit}
 button{background:none;border:0;cursor:pointer;color:var(--ink-2);border-radius:var(--radius)}
 button:hover{color:var(--ink);background:var(--accent-soft)}
 button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ico{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none}
-.pill{border:1px solid var(--line);padding:5px 12px;border-radius:999px;font-size:13px}
+.ico{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;font-size:17px;flex:none}
 
 /* ---------------------------------------------------------------- shell */
-#app{display:grid;grid-template-columns:var(--rail,290px) 1fr;grid-template-rows:1fr;height:100%}
+#app{display:grid;grid-template-columns:var(--rail,300px) 1fr;grid-template-rows:1fr;height:100%}
 #rail{background:var(--raised);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 #stage{position:relative;min-width:0;display:flex;flex-direction:column;min-height:0}
 
 /* ---------------------------------------------------------------- rail */
-#railtop{padding:14px 14px 10px;border-bottom:1px solid var(--line-2)}
-#crumb{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-#crumb a{color:var(--muted);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;gap:5px}
+#railtop{padding:12px 14px 10px;border-bottom:1px solid var(--line-2)}
+#crumb{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+#crumb a{color:var(--muted);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;gap:7px}
 #crumb a:hover{color:var(--accent)}
-#btitle{font:600 16px/1.32 var(--sans);letter-spacing:-.01em;margin:0 0 2px}
+.fg{width:18px;height:18px;flex:none;display:block}
+:root[data-theme="dark"] .fg-light{display:none}
+:root:not([data-theme="dark"]) .fg-dark{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-theme="eink"]) .fg-light{display:none}
+  :root:not([data-theme="light"]):not([data-theme="eink"]) .fg-dark{display:block}
+}
+:root[data-theme="eink"] .fg-dark{display:none!important}
+:root[data-theme="eink"] .fg-light{display:block!important;filter:grayscale(1) contrast(3)}
+#btitle{font:600 15.5px/1.32 var(--sans);letter-spacing:-.01em;margin:0 0 2px}
 #bmeta{color:var(--muted);font-size:12.5px;margin:0}
 #tabs{display:flex;gap:2px;padding:8px 10px 0}
-#tabs button{flex:1;padding:7px 4px;font-size:13px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
+#tabs button{flex:1;padding:7px 2px;font-size:12.5px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
 #tabs button[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-soft)}
 .panebody{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:8px 8px 24px;min-height:0}
 .pane[hidden]{display:none}
@@ -105,7 +114,16 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
                     border-left:3px solid var(--mark-line);padding-left:10px}
 .markrow .c{color:var(--muted);font-size:11.5px;display:flex;justify-content:space-between;gap:8px;align-items:center}
 .markrow .c button{padding:2px 7px;font-size:11.5px;color:var(--muted)}
-.empty{color:var(--muted);font-size:13px;padding:24px 12px;text-align:center;line-height:1.7}
+.wordrow{display:flex;align-items:baseline;gap:8px;padding:9px 10px;border-radius:8px;cursor:pointer;
+         border-bottom:1px solid var(--line-2)}
+.wordrow:hover{background:var(--accent-soft)}
+.wordrow b{font:600 14.5px/1.4 var(--body-font);flex:1}
+.wordrow .n{font:11px/1 var(--mono);color:var(--muted)}
+.wordrow .x{padding:2px 7px;font-size:11.5px;color:var(--muted)}
+.paneact{display:flex;gap:6px;padding:4px 4px 10px}
+.paneact button{flex:1;border:1px solid var(--line);padding:7px;font-size:12.5px;border-radius:8px}
+.empty{color:var(--muted);font-size:13px;padding:24px 12px;text-align:center;line-height:1.8}
+.empty kbd{font:11px/1 var(--mono);border:1px solid var(--line);border-radius:4px;padding:2px 5px;color:var(--ink-2)}
 
 /* ---------------------------------------------------------------- text */
 #main{flex:1;overflow-y:auto;overscroll-behavior-y:contain;scroll-behavior:smooth;min-height:0}
@@ -113,49 +131,54 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 #book{max-width:var(--measure);margin:0 auto;padding:6vh 24px 46vh;
       font:var(--size)/var(--lead) var(--body-font);color:var(--ink)}
 #book p,#book h1,#book h2,#book h3{margin:0 0 var(--gap);padding:3px 12px;border-radius:6px;
-      border-left:3px solid transparent;position:relative}
+      border-left:3px solid transparent;position:relative;
+      /* skip layout and paint for paragraphs off screen: a 9,000-paragraph volume otherwise
+         costs seconds on a phone and much more on an e-ink tablet */
+      content-visibility:auto;contain-intrinsic-size:auto 128px}
 #book p{text-align:justify;hyphens:auto;-webkit-hyphens:auto;text-indent:var(--indent)}
 #book p+p{margin-top:calc(var(--gap) * -.15)}
 #book h1{font:600 1.34em/1.3 var(--body-font);letter-spacing:-.01em;margin:2.6em 0 1.1em;
-         text-align:center;text-indent:0;padding-top:.5em}
+         text-align:center;text-indent:0;padding-top:.5em;content-visibility:visible}
 #book h1::after{content:"";display:block;width:44px;height:2px;background:var(--accent);
          margin:.62em auto 0;opacity:.55}
 #book h1:first-child{margin-top:.4em}
-#book h2{font:600 1.06em/1.4 var(--body-font);margin:1.9em 0 .8em;text-indent:0;letter-spacing:.02em}
+#book h2{font:600 1.06em/1.4 var(--body-font);margin:1.9em 0 .8em;text-indent:0;letter-spacing:.02em;
+         content-visibility:visible}
 #book h3{font:600 1em/1.4 var(--body-font);text-indent:0}
 #book .al{cursor:pointer}
 #book .al:hover{background:var(--line-2)}
 #book .cur{background:var(--now);border-left-color:var(--accent)}
 #book .na{color:var(--ink-2);opacity:.72}
 #book .has-mark{background:var(--mark);border-left-color:var(--mark-line)}
-#book .cur.has-mark{background:var(--now);border-left-color:var(--accent);
-      box-shadow:inset 3px 0 0 var(--mark-line)}
+#book .cur.has-mark{background:var(--now);border-left-color:var(--accent);box-shadow:inset 3px 0 0 var(--mark-line)}
 #book .al::before{content:attr(data-t);position:absolute;left:-72px;top:.45em;width:62px;
       text-align:right;font:11.5px/1 var(--mono);color:var(--muted);opacity:0;transition:opacity var(--speed)}
 #book .al:hover::before,#book .cur::before{opacity:.85}
 #book i,#book em{font-style:italic}
-#book .hl{background:var(--mark);border-radius:2px;box-shadow:0 1px 0 var(--mark-line)}
-
-/* reading-progress hairline under the top of the text column */
+/* sentence layer — the unit a language learner actually works with */
+.sn{border-radius:3px;padding:.05em 0}
+.sn.on{background:var(--now-s);box-shadow:0 0 0 1px var(--now-s)}
+.sn.wq{background:var(--word)}
+:root[data-theme="eink"] .sn.on{box-shadow:none;text-decoration:underline;text-underline-offset:3px}
 #thread{position:absolute;top:0;left:0;height:2px;background:var(--accent);width:0;z-index:3;
         transition:width .25s linear}
 
-/* ---------------------------------------------------------------- selection bubble */
+/* ---------------------------------------------------------------- bubble */
 #bubble{position:absolute;z-index:40;display:none;background:var(--raised);border:1px solid var(--line);
         border-radius:999px;box-shadow:var(--shadow);padding:4px;gap:2px;align-items:center}
 #bubble.on{display:flex}
 #bubble button{padding:6px 13px;font-size:13.5px;border-radius:999px;white-space:nowrap}
 
 /* ---------------------------------------------------------------- player */
-#player{border-top:1px solid var(--line);background:var(--raised);padding:8px 16px calc(8px + env(safe-area-inset-bottom));
+#player{border-top:1px solid var(--line);background:var(--raised);
+        padding:8px 16px calc(8px + env(safe-area-inset-bottom));
         display:flex;flex-direction:column;gap:6px;flex:none}
 #scrub{height:20px;display:flex;align-items:center;cursor:pointer;touch-action:none}
 #track{height:4px;width:100%;background:var(--line);border-radius:2px;position:relative}
 #fill{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:2px;width:0}
 #knob{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;
       background:var(--accent);border:2px solid var(--raised);left:0}
-:root[data-theme="eink"] #knob{border-color:#fff}
-#ctl{display:flex;align-items:center;gap:4px}
+#ctl{display:flex;align-items:center;gap:3px}
 #ctl .grow{flex:1;min-width:0}
 #play{width:46px;height:46px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:17px}
 #play:hover{background:var(--accent);color:var(--accent-ink);filter:brightness(1.08)}
@@ -163,15 +186,17 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 #nowline b{font-weight:600;color:var(--ink)}
 #clock{font:12px/1 var(--mono);color:var(--muted);white-space:nowrap;padding:0 4px}
 select.mini{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 8px;font-size:12.5px}
-#sleepdot{display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:-2px}
-#sleepdot.on{display:inline-block}
+.dot{display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin:0 2px 0 -4px}
+.dot.on{display:inline-block}
+#drill.hot{color:var(--accent-ink);background:var(--accent)}
 
-/* ---------------------------------------------------------------- settings sheet */
-#sheet{position:fixed;inset:auto 0 0 0;z-index:60;background:var(--raised);border-top:1px solid var(--line);
+/* ---------------------------------------------------------------- sheets */
+.sheet{position:fixed;inset:auto 0 0 0;z-index:60;background:var(--raised);border-top:1px solid var(--line);
        box-shadow:var(--shadow);padding:18px 20px calc(20px + env(safe-area-inset-bottom));display:none}
-#sheet.on{display:block}
-@media (min-width:820px){#sheet{inset:auto 16px 78px auto;width:410px;border:1px solid var(--line);border-radius:14px}}
-#sheet h3{margin:0 0 14px;font-size:14px;letter-spacing:.02em;color:var(--muted);text-transform:uppercase}
+.sheet.on{display:block}
+@media (min-width:820px){.sheet{inset:auto 16px 78px auto;width:430px;border:1px solid var(--line);border-radius:14px}}
+.sheet h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.sheet p.note{margin:0 0 12px;font-size:12.5px;color:var(--muted);line-height:1.65}
 .row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:9px 0;
      border-bottom:1px solid var(--line-2)}
 .row:last-child{border-bottom:0}
@@ -182,21 +207,38 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
 .stepper{display:flex;align-items:center;gap:2px}
 .stepper button{width:34px;height:32px;border:1px solid var(--line);font-size:15px}
 .stepper span{min-width:3.6em;text-align:center;font:12.5px/1 var(--mono);color:var(--muted)}
-#kb{color:var(--muted);font-size:12px;line-height:1.9;margin:12px 0 0}
+#kb{color:var(--muted);font-size:12px;line-height:1.95;margin:12px 0 0}
 #kb kbd{font:11px/1 var(--mono);border:1px solid var(--line);border-radius:4px;padding:2px 5px;
         background:var(--paper);color:var(--ink-2)}
 #scrim{position:fixed;inset:0;z-index:50;background:rgba(10,18,14,.32);display:none}
 #scrim.on{display:block}
 
-/* ---------------------------------------------------------------- toasts + resume */
+/* ---------------------------------------------------------------- word panel */
+#wordpanel{position:fixed;right:16px;bottom:78px;width:min(420px,calc(100vw - 32px));max-height:62vh;
+   z-index:58;background:var(--raised);border:1px solid var(--line);border-radius:14px;
+   box-shadow:var(--shadow);display:none;flex-direction:column;overflow:hidden}
+#wordpanel.on{display:flex}
+@media (max-width:860px){#wordpanel{right:8px;left:8px;width:auto;bottom:72px;max-height:56vh}}
+#wphead{display:flex;align-items:baseline;gap:10px;padding:14px 16px 10px;border-bottom:1px solid var(--line-2)}
+#wpword{font:600 21px/1.2 var(--body-font);flex:1;word-break:break-word}
+#wpcount{font:11.5px/1 var(--mono);color:var(--muted);flex:none}
+#wphead button{padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;flex:none}
+#wphead button.hot{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+#wpbody{overflow-y:auto;padding:6px 8px 12px}
+.wpline{padding:9px 10px;border-radius:8px;cursor:pointer;font:14px/1.6 var(--body-font);
+        color:var(--ink-2);border-bottom:1px solid var(--line-2)}
+.wpline:hover{background:var(--accent-soft);color:var(--ink)}
+.wpline b{color:var(--ink);background:var(--word);border-radius:2px;padding:0 2px}
+.wpline .c{display:block;font:10.5px/1.6 var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------------------------------------------------------------- toast / resume */
 #toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:70;background:var(--ink);
        color:var(--paper);padding:9px 18px;border-radius:999px;font-size:13.5px;opacity:0;
-       pointer-events:none;transition:opacity var(--speed)}
+       pointer-events:none;transition:opacity var(--speed);max-width:80vw;text-align:center}
 #toast.on{opacity:.95}
 #resume{position:absolute;left:50%;transform:translateX(-50%);top:14px;z-index:20;background:var(--raised);
         border:1px solid var(--line);box-shadow:var(--shadow);border-radius:999px;padding:7px 8px 7px 16px;
-        display:none;align-items:center;gap:10px;font-size:13.5px;max-width:calc(100% - 24px);
-        white-space:nowrap}
+        display:none;align-items:center;gap:10px;font-size:13.5px;max-width:calc(100% - 24px);white-space:nowrap}
 #resume.on{display:flex}
 #resume .lbl{min-width:0;overflow:hidden;text-overflow:ellipsis}
 #resume b{font-weight:600}
@@ -206,27 +248,37 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
 #railbtn{display:none}
 @media (max-width:860px){
   #app{grid-template-columns:1fr}
-  #rail{position:fixed;top:0;bottom:0;left:0;width:min(86vw,330px);z-index:55;transform:translateX(-102%);
+  #rail{position:fixed;top:0;bottom:0;left:0;width:min(86vw,340px);z-index:55;transform:translateX(-102%);
         transition:transform var(--speed);box-shadow:var(--shadow)}
   #rail.on{transform:none}
   #railbtn{display:inline-flex}
   #book{padding:3vh 6px 40vh}
   #book p,#book h1,#book h2{padding-left:10px;padding-right:10px}
-  /* justified text on a phone-width column opens rivers between the words */
-  #book p{text-align:left}
+  #book p{text-align:left}          /* justified text in a phone-width column opens rivers */
+  #book .al::before{display:none}
+  /* on a phone the speed control earns its place and the clock does not: slowing the narration
+     down is the first thing a language learner reaches for */
+  #clock,#nowline{display:none}
+  #ctl{gap:0}
+  .ico{width:38px}
   #resume{top:8px;padding:6px 6px 6px 12px;font-size:12.5px;gap:6px}
   #resume button{padding:5px 10px;font-size:12.5px}
-  #book .al::before{display:none}
-  #clock{display:none}
 }
-@media (max-width:520px){ #ratewrap{display:none} }
+@media (max-width:430px){
+  /* Ten controls do not fit a phone. The ±5 s buttons go first: for a learner, stepping by
+     sentence is better navigation than stepping by seconds, and the scrubber still seeks. */
+  #back5,#fwd5{display:none}
+  .ico{width:36px}
+}
 </style></head>
 <body>
 <div id="app">
 
  <aside id="rail">
   <div id="railtop">
-   <div id="crumb"><a href="index.html">‹ 书架</a></div>
+   <div id="crumb"><a href="index.html">
+     <img class="fg fg-light" src="flowgt.svg" alt="FlowGT"><img class="fg fg-dark" src="flowgt-reverse.svg" alt="">
+     ‹ 书架</a></div>
    <h1 id="btitle"></h1>
    <p id="bmeta"></p>
   </div>
@@ -234,6 +286,7 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
    <button id="tabToc"  role="tab" aria-selected="true"  aria-controls="toc">目录</button>
    <button id="tabFind" role="tab" aria-selected="false" aria-controls="find">搜索</button>
    <button id="tabMark" role="tab" aria-selected="false" aria-controls="marks">收藏</button>
+   <button id="tabWord" role="tab" aria-selected="false" aria-controls="words">生词</button>
   </div>
   <nav  id="toc"   class="pane panebody" role="tabpanel"></nav>
   <div  id="find"  class="pane panebody" role="tabpanel" hidden>
@@ -241,6 +294,7 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
     <div id="qhint"></div><div id="qout"></div>
   </div>
   <div  id="marks" class="pane panebody" role="tabpanel" hidden></div>
+  <div  id="words" class="pane panebody" role="tabpanel" hidden></div>
  </aside>
 
  <div id="stage">
@@ -248,33 +302,55 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
   <div id="resume"></div>
   <div id="main"><article id="book"></article></div>
   <div id="bubble">
-   <button id="bMark">收藏</button><button id="bPlay">朗读此处</button>
+   <button id="bMark">收藏</button><button id="bWord">查词</button><button id="bPlay">朗读此处</button>
   </div>
 
   <div id="player">
    <div id="scrub"><div id="track"><div id="fill"></div><div id="knob"></div></div></div>
    <div id="ctl">
     <button class="ico" id="railbtn" title="目录 (T)">☰</button>
-    <button class="ico" id="prevch" title="上一章">⏮</button>
-    <button class="ico" id="back15" title="后退 15 秒 (←)">↺</button>
+    <button class="ico" id="prevs" title="上一句 (K)">‹</button>
+    <button class="ico" id="back5" title="后退 5 秒 (←)">↺</button>
     <button id="play" title="播放 / 暂停 (空格)">▶</button>
-    <button class="ico" id="fwd15" title="前进 15 秒 (→)">↻</button>
-    <button class="ico" id="nextch" title="下一章">⏭</button>
+    <button class="ico" id="fwd5" title="前进 5 秒 (→)">↻</button>
+    <button class="ico" id="nexts" title="下一句 (J)">›</button>
+    <button class="ico" id="again" title="重听这一句 (R)">⟲</button>
     <div class="grow"><div id="nowline">—</div></div>
     <span id="clock">0:00 / 0:00</span>
     <span id="ratewrap"><select class="mini" id="rate" title="语速">
-      <option>0.75</option><option>0.9</option><option selected>1</option><option>1.1</option>
-      <option>1.25</option><option>1.5</option><option>1.75</option><option>2</option>
+      <option>0.5</option><option>0.6</option><option>0.75</option><option>0.9</option>
+      <option selected>1</option><option>1.1</option><option>1.25</option><option>1.5</option><option>2</option>
     </select></span>
-    <button class="ico" id="settingsbtn" title="设置">⚙</button><span id="sleepdot"></span>
+    <button class="ico" id="drill" title="练习模式">练</button><span class="dot" id="drilldot"></span>
+    <button class="ico" id="settingsbtn" title="排版设置">⚙</button><span class="dot" id="sleepdot"></span>
    </div>
   </div>
  </div>
 </div>
 
 <div id="scrim"></div>
-<section id="sheet" aria-label="阅读设置">
- <h3>阅读设置</h3>
+
+<section id="practice" class="sheet" aria-label="练习设置">
+ <h3>练习模式</h3>
+ <p class="note">句子跟着朗读高亮，点任意一句从那里播放。复读和停顿是给跟读用的：
+   听一句 → 停 → 自己说一遍 → 下一句。</p>
+ <div class="row"><span>句子高亮</span><div class="seg" id="segSent">
+   <button data-v="1">开</button><button data-v="0">关</button></div></div>
+ <div class="row"><span>复读</span><div class="seg" id="segLoop">
+   <button data-v="off">关</button><button data-v="sent">整句</button><button data-v="para">整段</button></div></div>
+ <div class="row"><span>复读遍数</span><div class="seg" id="segTimes">
+   <button data-v="1">1</button><button data-v="2">2</button><button data-v="3">3</button>
+   <button data-v="5">5</button><button data-v="99">一直</button></div></div>
+ <div class="row"><span>每句后停顿</span><div class="seg" id="segGap">
+   <button data-v="0">关</button><button data-v="1">1 秒</button><button data-v="2">2 秒</button>
+   <button data-v="3">3 秒</button><button data-v="-1">等长</button></div></div>
+ <div class="row"><span>睡眠定时</span><div class="seg" id="segSleep">
+   <button data-v="0">关</button><button data-v="15">15 分</button>
+   <button data-v="30">30 分</button><button data-v="60">60 分</button><button data-v="-1">本章末</button></div></div>
+</section>
+
+<section id="sheet" class="sheet" aria-label="排版设置">
+ <h3>排版</h3>
  <div class="row"><span>主题</span><div class="seg" id="segTheme">
    <button data-v="auto">跟随系统</button><button data-v="light">日间</button>
    <button data-v="dark">夜间</button><button data-v="eink">墨水屏</button></div></div>
@@ -290,12 +366,16 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
    <button data-v="0">无</button><button data-v="2">两字</button></div></div>
  <div class="row"><span>跟随朗读滚动</span><div class="seg" id="segFollow">
    <button data-v="1">开</button><button data-v="0">关</button></div></div>
- <div class="row"><span>睡眠定时</span><div class="seg" id="segSleep">
-   <button data-v="0">关</button><button data-v="15">15 分</button>
-   <button data-v="30">30 分</button><button data-v="60">60 分</button><button data-v="-1">本章末</button></div></div>
- <p id="kb"><kbd>空格</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前后 15 秒 · <kbd>J</kbd><kbd>K</kbd> 上下段 ·
-   <kbd>M</kbd> 收藏当前段 · <kbd>/</kbd> 搜索 · <kbd>T</kbd> 目录 · <kbd>Esc</kbd> 关闭</p>
+ <p id="kb"><kbd>空格</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 前后 5 秒 · <kbd>J</kbd><kbd>K</kbd> 下/上一句 ·
+   <kbd>R</kbd> 重听这句 · <kbd>D</kbd> 练习模式 · <kbd>M</kbd> 收藏 · <kbd>W</kbd> 查词 ·
+   <kbd>/</kbd> 搜索 · <kbd>T</kbd> 目录 · <kbd>Esc</kbd> 关闭 · 双击任意单词查词</p>
 </section>
+
+<div id="wordpanel">
+ <div id="wphead"><span id="wpword"></span><span id="wpcount"></span>
+   <button id="wpsave">加入生词本</button><button id="wpclose">✕</button></div>
+ <div id="wpbody"></div>
+</div>
 
 <div id="toast"></div>
 <audio id="au" preload="metadata"></audio>
@@ -305,14 +385,15 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
 var $=function(s){return document.querySelector(s)};
 var au=$('#au'), book=$('#book'), main=$('#main'), rail=$('#rail'), toc=$('#toc');
 // The browser restores the scroll offset of #main on reload, asynchronously, and lands wherever
-// the previous visit happened to be — overriding the saved reading position we are about to set.
+// the previous visit happened to be — overriding the reading position we are about to set.
 try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+
 var SLUG=new URLSearchParams(location.search).get('book')||'';
 var BASE=SLUG+'/', PKEY='ac:pos:'+SLUG, MKEY='ac:marks:'+SLUG, PREFKEY='ac:prefs';
 var D=null, SEQ=[], CH=[], curId=-1, curFile=-1, ME={user:'local',auth:'local'};
 var marks=[], marksDirty=false, lastSave=0, restoring=false;
+var curSent=null;                       // {id, i, s, e}
 
-/* ---------------------------------------------------------------- utils */
 function fmt(s){ s=Math.max(0,Math.floor(s||0));
   var h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
   return (h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(x).padStart(2,'0'); }
@@ -321,16 +402,15 @@ function hms(s){ var h=Math.floor((s||0)/3600), m=Math.round((s||0)%3600/60);
 function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
 function toast(t){ var el=$('#toast'); el.textContent=t; el.classList.add('on');
-  clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove('on')},1900); }
+  clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove('on')},2000); }
 function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+function txt(h){ var d=document.createElement('div'); d.innerHTML=h; return d.textContent.trim(); }
 
 /* ---------------------------------------------------------------- preferences */
-// A 19px serif over a 375px column leaves about six words per line. Start smaller on a phone;
-// the reader can still set whatever they like, and that choice is what gets stored.
-var P=Object.assign({theme:'auto', font:'serif', size:(screen.width<600?17:19),
-                     lead:1.78, wide:34, indent:0, follow:1, sleep:0},
-                    lsGet(PREFKEY,{}));
+var P=Object.assign({theme:'auto', font:'serif', size:(screen.width<600?17:19), lead:1.78,
+                     wide:34, indent:0, follow:1, sleep:0, rate:1,
+                     sent:1, loop:'off', times:2, gap:0}, lsGet(PREFKEY,{}));
 function applyPrefs(){
   var r=document.documentElement.style;
   if(P.theme==='auto') document.documentElement.removeAttribute('data-theme');
@@ -340,6 +420,8 @@ function applyPrefs(){
   r.setProperty('--lead', String(P.lead));
   r.setProperty('--measure', P.wide+'em');
   r.setProperty('--indent', P.indent+'em');
+  $('#drill').classList.toggle('hot', P.loop!=='off' || +P.gap!==0);
+  $('#drilldot').classList.toggle('on', P.loop!=='off' || +P.gap!==0);
   syncSheet();
 }
 function syncSheet(){
@@ -347,6 +429,7 @@ function syncSheet(){
     for(i=0;i<b.length;i++) b[i].setAttribute('aria-pressed', String(b[i].dataset.v===String(val))); }
   seg('#segTheme',P.theme); seg('#segFont',P.font); seg('#segIndent',P.indent);
   seg('#segFollow',P.follow); seg('#segSleep',P.sleep);
+  seg('#segSent',P.sent); seg('#segLoop',P.loop); seg('#segTimes',P.times); seg('#segGap',P.gap);
   $('#stpSize').children[1].textContent=P.size+'px';
   $('#stpLead').children[1].textContent=P.lead.toFixed(2);
   $('#stpWide').children[1].textContent=P.wide+'em';
@@ -381,17 +464,16 @@ function render(){
   $('#bmeta').textContent=bits.join(' · ');
 
   // Which heading level is the chapter level? h1 when the book really has chapters — that is what
-  // mark_chapters() produces from the audio file names. A book split into "Part 01…Part 08" gets no
-  // h1 at all, and then its h2 headings are the only structure there is; a single-entry table of
-  // contents for a 400-page book is worse than a noisy one.
-  var TOP='h1', lv, c;
-  for(lv=0;lv<3;lv++){
-    var tag=['h1','h2','h3'][lv], k=0;
+  // mark_chapters() produces from the audio file names. A book split into "Part 01…Part 08" has
+  // only its own h2 headings, and a single-entry table of contents is worse than a noisy one.
+  var TOP='h1', i, k, tag;
+  for(var lv=0; lv<3; lv++){
+    tag=['h1','h2','h3'][lv]; k=0;
     for(i=0;i<D.paras.length;i++) if(D.paras[i].tag===tag) k++;
     if(k>=3){ TOP=tag; break; }
   }
 
-  var frag=document.createDocumentFragment(), i, p, el;
+  var frag=document.createDocumentFragment(), p, el;
   for(i=0;i<D.paras.length;i++){
     p=D.paras[i];
     el=document.createElement(p.tag==='h1'?'h1':p.tag==='h2'?'h2':p.tag==='h3'?'h3':'p');
@@ -407,19 +489,17 @@ function render(){
   SEQ=D.paras.filter(function(p){return p.t}).sort(function(x,y){
     return x.t.f-y.t.f || x.t.s-y.t.s || x.id-y.id; });
 
-  chapterSpans(); buildToc(); paintMarks(); renderMarks();
+  chapterSpans(); buildToc(); paintMarks(); renderMarks(); renderWords();
   book.addEventListener('click', onBookClick);
+  book.addEventListener('dblclick', onBookDblClick);
   main.addEventListener('scroll', onScroll, {passive:true});
+  wrapNear(); setTimeout(wrapNear, 400);
 }
-function txt(h){ var d=document.createElement('div'); d.innerHTML=h; return d.textContent.trim(); }
 
-/* How long each chapter actually runs. One audio file per chapter is the common case, but a book
-   split into four big parts puts many chapters in one file — printing the file's length beside
-   every one of them would be a lie. Measure to the next chapter's start instead. */
+/* How long each chapter actually runs, and which paragraph to play for a chapter whose own
+   heading never anchored (one short line does not always find an anchor). */
 function chapterSpans(){
   var dur=D.durations||[], i, c, nx;
-  // A chapter heading is one short line and does not always anchor. Fall back to the first
-  // paragraph of the chapter that did, so every chapter stays playable and timed.
   for(i=0;i<CH.length;i++){
     c=CH[i];
     if(c.t) continue;
@@ -430,27 +510,24 @@ function chapterSpans(){
     c=CH[i]; if(!c.t){ c.len=0; continue; }
     nx=null;
     for(var j=i+1;j<CH.length;j++) if(CH[j].t){ nx=CH[j].t; break; }
-    c.len = (nx && nx.f===c.t.f) ? Math.max(0, nx.s-c.t.s)
-                                 : Math.max(0, (dur[c.t.f]||0) - c.t.s);
+    c.len = (nx && nx.f===c.t.f) ? Math.max(0, nx.s-c.t.s) : Math.max(0, (dur[c.t.f]||0) - c.t.s);
   }
 }
+function chapterPlayId(c){ return (c && typeof c.playId==='number') ? c.playId : (c?c.id:0); }
 
 function buildToc(){
   toc.innerHTML='';
   for(var i=0;i<CH.length;i++){
     var c=CH[i], a=document.createElement('a');
     a.className=c.t?'':'na'; a.dataset.ch=String(i); a.href='#p'+c.id;
-    var d=c.len||0;
     a.innerHTML='<span class="n">'+(i+1)+'</span><span class="t"></span>'+
-                (d?'<span class="d">'+fmt(d)+'</span>':'');
+                (c.len?'<span class="d">'+fmt(c.len)+'</span>':'');
     a.querySelector('.t').textContent=nicecase(c.title);
-    a.onclick=function(e){ e.preventDefault();
-      var c2=CH[+this.dataset.ch]; jumpTo(c2.id); closeRail(); };
+    a.onclick=function(e){ e.preventDefault(); jumpTo(CH[+this.dataset.ch].id); closeRail(); };
     toc.appendChild(a);
   }
 }
-/* Chapter titles come out of the PDF in caps ("THE KNIGHT BUS"). Caps are slower to read and
-   shout in a table of contents, so present them in title case. */
+/* Chapter titles come out of a PDF in caps. Caps read slower and shout in a list. */
 function nicecase(s){
   if(!/[a-z]/.test(s) && /[A-Z]/.test(s)){
     var small={a:1,an:1,and:1,the:1,of:1,in:1,on:1,at:1,to:1,for:1,from:1,with:1,or:1,nor:1,but:1};
@@ -460,19 +537,107 @@ function nicecase(s){
   return s;
 }
 
+/* ------------------------------------------------- sentence spans, wrapped lazily
+   A 9,000-paragraph book would gain ~35,000 extra elements if every sentence were wrapped up
+   front. Wrap a paragraph the first time it comes near the viewport, or the moment playback
+   needs to highlight inside it. */
+function wrapSentences(el, sent){
+  if(!sent || el.dataset.w) return;
+  el.dataset.w='1';
+  var nodes=[], w=document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+  while(w.nextNode()) nodes.push(w.currentNode);
+  var pos=0;
+  for(var n=0;n<nodes.length;n++){
+    var node=nodes[n], t=node.nodeValue, a=pos, b=pos+t.length; pos=b;
+    var parts=[];
+    for(var r=0;r<sent.length;r++){
+      var s=Math.max(a,sent[r][0]), e=Math.min(b,sent[r][1]);
+      if(s<e) parts.push([s-a, e-a, r]);
+    }
+    if(!parts.length) continue;
+    var frag=document.createDocumentFragment(), cur=0;
+    for(var q=0;q<parts.length;q++){
+      if(parts[q][0]>cur) frag.appendChild(document.createTextNode(t.slice(cur,parts[q][0])));
+      var sp=document.createElement('span');
+      sp.className='sn'; sp.dataset.i=parts[q][2];
+      sp.textContent=t.slice(parts[q][0],parts[q][1]);
+      frag.appendChild(sp); cur=parts[q][1];
+    }
+    if(cur<t.length) frag.appendChild(document.createTextNode(t.slice(cur)));
+    node.parentNode.replaceChild(frag,node);
+  }
+}
+function ensureWrapped(id){
+  if(!+P.sent) return;
+  var p=D.paras[id], el=document.getElementById('p'+id);
+  if(p && el && p.t && p.t.sent) wrapSentences(el, p.t.sent);
+}
+/* Wrap the band of paragraphs around the current scroll position. Driven by scroll rather than
+   IntersectionObserver: an observer rooted on a scroller never fires while the tab is hidden or
+   the pane is collapsed, and then the sentence layer silently never appears. A binary search plus
+   a short walk is cheap enough to run on every scroll frame. */
+function paraAt(y){
+  var lo=0, hi=D.paras.length-1, ans=0, el;
+  while(lo<=hi){ var m=(lo+hi)>>1; el=document.getElementById('p'+m);
+    if(!el) break;
+    if(el.offsetTop<=y){ ans=m; lo=m+1; } else hi=m-1; }
+  return ans;
+}
+function wrapNear(){
+  if(!D || !+P.sent) return;
+  var h=main.clientHeight || 800;
+  var top=Math.max(0, main.scrollTop-h), bot=main.scrollTop+2*h;
+  var i=paraAt(top), n=0;
+  for(; i<D.paras.length && n<80; i++){
+    var el=document.getElementById('p'+i);
+    if(!el) break;
+    if(el.offsetTop>bot) break;
+    if(!el.dataset.w){ ensureWrapped(i); n++; }
+  }
+}
+function scheduleWrap(){
+  if(scheduleWrap._t) return;
+  scheduleWrap._t=requestAnimationFrame(function(){ scheduleWrap._t=0; wrapNear(); });
+}
+function sentAt(id, t){
+  var p=D.paras[id]; if(!p||!p.t||!p.t.sent) return null;
+  var a=p.t.sent, lo=0, hi=a.length-1, ans=-1;
+  while(lo<=hi){ var m=(lo+hi)>>1; if(a[m][2]<=t+0.05){ ans=m; lo=m+1; } else hi=m-1; }
+  if(ans<0) return null;
+  var e=a[ans][3] || (ans+1<a.length ? a[ans+1][2] : p.t.e);
+  return {id:id, i:ans, s:a[ans][2], e:e};
+}
+function markSentence(s){
+  var old=book.querySelectorAll('.sn.on'), i;
+  for(i=0;i<old.length;i++) old[i].classList.remove('on');
+  curSent=s; paraDone=false;
+  if(!s) return;
+  if(!+P.sent) return;
+  ensureWrapped(s.id);
+  var el=document.getElementById('p'+s.id);
+  if(!el) return;
+  var sp=el.querySelectorAll('.sn[data-i="'+s.i+'"]');
+  for(i=0;i<sp.length;i++) sp[i].classList.add('on');
+}
+
 /* ---------------------------------------------------------------- playback */
-function paraOf(id){ return D.paras[id]; }
 function onBookClick(e){
+  if(e.detail>1 || String(window.getSelection())) return;   // a double click selects a word
+  var sn=e.target.closest ? e.target.closest('.sn') : null;
+  if(sn && book.contains(sn)){
+    var pid=+sn.closest('.al').id.slice(1), i=+sn.dataset.i, a=D.paras[pid].t.sent[i];
+    setCur(pid); seek(D.paras[pid].t.f, a[2], true);
+    markSentence({id:pid,i:i,s:a[2],e:a[3]||(D.paras[pid].t.sent[i+1]?D.paras[pid].t.sent[i+1][2]:D.paras[pid].t.e)});
+    loopLeft=+P.times; return;
+  }
   var el=e.target.closest ? e.target.closest('.al') : null;
-  if(!el || !book.contains(el)) return;
-  // Selecting text is not a play command. e.detail>1 catches the double/triple click that
-  // selects a word or a line: its first click still has an empty selection.
-  if(e.detail>1 || String(window.getSelection())) return;
-  playPara(+el.id.slice(1), true);
+  if(el && book.contains(el)) playPara(+el.id.slice(1), true);
 }
 function playPara(id, play){
-  var p=paraOf(id); if(!p||!p.t) return;
+  var p=D.paras[id]; if(!p||!p.t) return;
   seek(p.t.f, p.t.s, play); setCur(id);
+  markSentence(sentAt(id, p.t.s));
+  loopLeft=+P.times;
 }
 function seek(f,t,play){
   var go=function(){ try{ au.currentTime=t; }catch(e){} if(play) au.play().catch(function(){}); };
@@ -485,12 +650,11 @@ function seek(f,t,play){
 }
 function setCur(id){
   if(id===curId) return;
-  var old=document.querySelector('#book .cur'); if(old) old.classList.remove('cur');
+  var old=book.querySelector('.cur'); if(old) old.classList.remove('cur');
   curId=id;
   var el=document.getElementById('p'+id);
-  if(el){ el.classList.add('cur'); if(!restoring) follow(el); }
-  var ci=chapterOf(id);
-  var links=toc.children, i;
+  if(el){ el.classList.add('cur'); ensureWrapped(id); if(!restoring) follow(el); }
+  var ci=chapterOf(id), links=toc.children, i;
   for(i=0;i<links.length;i++) links[i].classList.toggle('cur', i===ci);
   var ch=CH[ci];
   $('#nowline').innerHTML='<b>'+esc(nicecase(ch?ch.title:D.title))+'</b>';
@@ -500,16 +664,15 @@ function chapterOf(id){ var i, k=0; for(i=0;i<CH.length;i++){ if(CH[i].id<=id) k
 function follow(el){
   if(!+P.follow) return;
   var r=el.getBoundingClientRect(), h=main.clientHeight, top=main.getBoundingClientRect().top;
-  if(r.top-top < h*0.14 || r.bottom-top > h*0.72)
-    main.scrollTop = el.offsetTop - h*0.34;
+  if(r.top-top < h*0.14 || r.bottom-top > h*0.72) main.scrollTop = el.offsetTop - h*0.34;
 }
 function jumpTo(id){
   var el=document.getElementById('p'+id); if(!el) return;
+  ensureWrapped(id);
   main.scrollTop = el.offsetTop - main.clientHeight*0.18;
-  el.classList.add('flash'); setTimeout(function(){el.classList.remove('flash')},900);
-  if(paraOf(id) && paraOf(id).t) setCur(id);
+  wrapNear();
+  if(D.paras[id] && D.paras[id].t) setCur(id);
 }
-/* binary search: last aligned paragraph at or before t in file f */
 function locate(f,t){
   var lo=0, hi=SEQ.length-1, ans=-1, m, p;
   while(lo<=hi){ m=(lo+hi)>>1; p=SEQ[m].t;
@@ -517,14 +680,61 @@ function locate(f,t){
   return (ans>=0 && SEQ[ans].t.f===f) ? SEQ[ans] : null;
 }
 
+/* --------------------------------------------------- repeat and shadowing
+   The loop is what turns a read-along into practice: hear one sentence, pause, say it back,
+   hear it again. Everything below is driven from timeupdate so it survives seeking. */
+var loopLeft=0, gapTimer=0, paraDone=false;
+function gapMs(s){ var g=+P.gap; return g<0 ? Math.round((s||2)*1000) : g*1000; }
+/* Returns true when it took charge of playback. `clear` un-marks the unit as finished, and is
+   called just before rewinding — otherwise the second pass would sail past its own end. */
+function afterUnit(unitStart, dur, clear){
+  if(P.loop!=='off' && loopLeft>1){
+    loopLeft--;
+    pauseThen(function(){ clear(); au.currentTime=unitStart; au.play().catch(function(){}); }, gapMs(dur));
+    return true;
+  }
+  if(P.loop!=='off') loopLeft=+P.times;
+  if(+P.gap!==0){ pauseThen(function(){ au.play().catch(function(){}); }, gapMs(dur)); return true; }
+  return false;
+}
+function pauseThen(fn, ms){
+  au.pause(); clearTimeout(gapTimer);
+  if(ms<=0){ fn(); return; }
+  $('#nowline').innerHTML='<b>跟读…</b>';
+  gapTimer=setTimeout(function(){ fn(); if(curId>=0) setNowline(); }, ms);
+}
+function setNowline(){ var ch=CH[chapterOf(curId)];
+  $('#nowline').innerHTML='<b>'+esc(nicecase(ch?ch.title:D.title))+'</b>'; }
+
 au.addEventListener('timeupdate', function(){
   if(!D || curFile<0) return;
-  var p=locate(curFile, au.currentTime);
-  if(p) setCur(p.id);
-  var d=au.duration||0;
-  var pct=d?au.currentTime/d*100:0;
+  var t=au.currentTime;
+
+  // The unit is "done" once its end has been acted on, so that resuming after a shadowing pause
+  // lands past the end without immediately pausing again.
+  if(curSent && !curSent.done && (P.loop==='sent' || +P.gap!==0)){
+    if(curSent.e && t >= curSent.e - 0.02 && !au.paused){
+      var u=curSent; u.done=true;
+      if(afterUnit(u.s, u.e-u.s, function(){ u.done=false; })) return;
+    }
+  }
+  if(P.loop==='para' && curId>=0 && !paraDone){
+    var pp=D.paras[curId].t;
+    if(pp && pp.e && t >= pp.e - 0.02 && !au.paused){
+      paraDone=true;
+      if(afterUnit(pp.s, pp.e-pp.s, function(){ paraDone=false; })) return;
+    }
+  }
+
+  var p=locate(curFile, t);
+  if(p){
+    setCur(p.id);
+    var s=sentAt(p.id, t);
+    if(s && (!curSent || curSent.id!==s.id || curSent.i!==s.i)) markSentence(s);
+  }
+  var d=au.duration||0, pct=d?t/d*100:0;
   $('#fill').style.width=pct+'%'; $('#knob').style.left=pct+'%';
-  $('#clock').textContent=fmt(au.currentTime)+' / '+fmt(d);
+  $('#clock').textContent=fmt(t)+' / '+fmt(d);
   $('#thread').style.width=(curId/Math.max(1,D.paras.length-1)*100)+'%';
   savePos(false);
   if(sleepAt && Date.now()>sleepAt) stopSleep(true);
@@ -534,73 +744,81 @@ au.addEventListener('pause', function(){ $('#play').textContent='▶'; savePos(t
 au.addEventListener('ended', function(){
   if(sleepChapterEnd){ stopSleep(true); return; }
   if(curFile+1 < D.files.length){
-    var n=null, i;
-    for(i=0;i<SEQ.length;i++) if(SEQ[i].t.f===curFile+1){ n=SEQ[i]; break; }
-    if(n){ playPara(n.id, true); return; }
+    for(var i=0;i<SEQ.length;i++) if(SEQ[i].t.f===curFile+1){ playPara(SEQ[i].id, true); return; }
     seek(curFile+1, 0, true);
   }
 });
 $('#play').onclick=function(){
+  clearTimeout(gapTimer);
   if(curFile<0){ if(SEQ.length) playPara(SEQ[0].id, true); return; }
   if(au.paused) au.play().catch(function(){}); else au.pause();
 };
-$('#back15').onclick=function(){ au.currentTime=Math.max(0,au.currentTime-15); };
-$('#fwd15').onclick =function(){ au.currentTime=Math.min(au.duration||1e9,au.currentTime+15); };
-$('#prevch').onclick=function(){ hopChapter(-1); };
-$('#nextch').onclick=function(){ hopChapter(1); };
-function chapterPlayId(c){ return (c && typeof c.playId==='number') ? c.playId : (c?c.id:0); }
-function hopChapter(k){
-  var i=chapterOf(curId<0?0:curId);
-  // "previous" first rewinds to the start of the chapter you are in, as every audio player does
-  if(k<0 && au.currentTime>6 && CH[i] && CH[i].t){ playPara(chapterPlayId(CH[i]), !au.paused); return; }
-  var j=i+k; if(j<0||j>=CH.length) return;
-  playPara(chapterPlayId(CH[j]), !au.paused); jumpTo(CH[j].id);
+$('#back5').onclick=function(){ au.currentTime=Math.max(0,au.currentTime-5); };
+$('#fwd5').onclick =function(){ au.currentTime=Math.min(au.duration||1e9,au.currentTime+5); };
+$('#again').onclick=function(){
+  clearTimeout(gapTimer);
+  var u=curSent || (curId>=0 && D.paras[curId].t ? {s:D.paras[curId].t.s} : null);
+  if(!u) return;
+  au.currentTime=u.s; au.play().catch(function(){});
+};
+function stepSent(k){
+  var id=curId, p=D.paras[id];
+  if(p && p.t && p.t.sent && curSent){
+    var i=curSent.i+k;
+    if(i>=0 && i<p.t.sent.length){
+      var a=p.t.sent[i];
+      au.currentTime=a[2];
+      markSentence({id:id,i:i,s:a[2],e:a[3]||(p.t.sent[i+1]?p.t.sent[i+1][2]:p.t.e)});
+      loopLeft=+P.times;
+      if(au.paused) au.play().catch(function(){});
+      return;
+    }
+  }
+  var j=-1;
+  for(var n=0;n<SEQ.length;n++) if(SEQ[n].id===curId){ j=n; break; }
+  var nx=SEQ[j+k]; if(nx) playPara(nx.id, !au.paused);
 }
+$('#prevs').onclick=function(){ stepSent(-1); };
+$('#nexts').onclick=function(){ stepSent(1); };
 $('#rate').onchange=function(){ au.playbackRate=+this.value; P.rate=+this.value; savePrefs(); };
 if(P.rate){ $('#rate').value=String(P.rate); au.playbackRate=P.rate; }
 
-/* scrubber: pointer drag anywhere on the strip */
 (function(){
   var s=$('#scrub'), dragging=false;
-  function at(e){
-    var r=$('#track').getBoundingClientRect();
+  function at(e){ var r=$('#track').getBoundingClientRect();
     var x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
-    return Math.min(1,Math.max(0,x/r.width));
-  }
+    return Math.min(1,Math.max(0,x/r.width)); }
   function set(e){ if(au.duration) au.currentTime=at(e)*au.duration; }
   s.addEventListener('pointerdown', function(e){ dragging=true; s.setPointerCapture(e.pointerId); set(e); });
   s.addEventListener('pointermove', function(e){ if(dragging) set(e); });
-  s.addEventListener('pointerup',   function(){ dragging=false; });
+  s.addEventListener('pointerup', function(){ dragging=false; });
 })();
 
-/* lock-screen / headphone controls */
 function media(ch){
   if(!('mediaSession' in navigator)) return;
   try{
     navigator.mediaSession.metadata=new MediaMetadata({
       title: nicecase(ch?ch.title:D.title), artist: D.narrator||D.author||'', album: D.title,
-      artwork: D.cover?[{src:BASE+D.cover, sizes:'429x615', type:'image/jpeg'}]:[]
-    });
+      artwork: D.cover?[{src:BASE+D.cover, sizes:'429x615', type:'image/jpeg'}]:[]});
     navigator.mediaSession.setActionHandler('play', function(){ au.play(); });
     navigator.mediaSession.setActionHandler('pause', function(){ au.pause(); });
-    navigator.mediaSession.setActionHandler('seekbackward', function(){ $('#back15').onclick(); });
-    navigator.mediaSession.setActionHandler('seekforward', function(){ $('#fwd15').onclick(); });
-    navigator.mediaSession.setActionHandler('previoustrack', function(){ hopChapter(-1); });
-    navigator.mediaSession.setActionHandler('nexttrack', function(){ hopChapter(1); });
+    navigator.mediaSession.setActionHandler('seekbackward', function(){ $('#back5').onclick(); });
+    navigator.mediaSession.setActionHandler('seekforward', function(){ $('#fwd5').onclick(); });
+    navigator.mediaSession.setActionHandler('previoustrack', function(){ stepSent(-1); });
+    navigator.mediaSession.setActionHandler('nexttrack', function(){ stepSent(1); });
   }catch(e){}
 }
 
 /* ---------------------------------------------------------------- sleep timer */
 var sleepAt=0, sleepChapterEnd=false;
 function setSleep(v){
-  P.sleep=v; savePrefs();
-  sleepAt=0; sleepChapterEnd=false;
+  P.sleep=v; savePrefs(); sleepAt=0; sleepChapterEnd=false;
   if(v>0){ sleepAt=Date.now()+v*60000; toast(v+' 分钟后停止播放'); }
   else if(v<0){ sleepChapterEnd=true; toast('本章结束后停止播放'); }
   $('#sleepdot').classList.toggle('on', v!==0);
 }
-function stopSleep(fire){ if(fire){ au.pause(); toast('已到定时，停止播放'); } sleepAt=0; sleepChapterEnd=false;
-  P.sleep=0; savePrefs(); $('#sleepdot').classList.remove('on'); }
+function stopSleep(fire){ if(fire){ au.pause(); toast('已到定时，停止播放'); }
+  sleepAt=0; sleepChapterEnd=false; P.sleep=0; savePrefs(); $('#sleepdot').classList.remove('on'); }
 
 /* ---------------------------------------------------------------- position */
 function savePos(force){
@@ -617,43 +835,18 @@ addEventListener('pagehide', function(){ savePos(true); pushMarks(true); });
 document.addEventListener('visibilitychange', function(){
   if(document.hidden){ savePos(true); pushMarks(true); } });
 
-function restore(server){
-  var local=lsGet(PKEY,null), s=local;
-  if(server && (!local || (server.ts||0)*1000 > (local.ts||0))) s=server;
-  if(!s || typeof s.id!=='number'){ setCur(SEQ.length?SEQ[0].id:0); return; }
-  restoring=true;
-  seek(s.f, s.t||0, false); setCur(s.id);
-  var el=document.getElementById('p'+s.id);
-  if(el){
-    // Jump, don't glide: smooth scrolling over ten thousand paragraphs takes seconds and can be
-    // cancelled by the first touch. Re-apply once after layout settles (web fonts, images).
-    holdScroll(el.offsetTop-main.clientHeight*0.3, function(){ restoring=false; });
-  } else restoring=false;
-  var ch=CH[chapterOf(s.id)];
-  var r=$('#resume');
-  r.innerHTML='<span class="lbl">上次读到 <b></b></span>'+
-    '<button class="go">继续朗读</button><button class="x">从头</button>';
-  r.querySelector('b').textContent=nicecase(ch?ch.title:'') + (s.t?(' · '+fmt(s.t)):'');
-  r.classList.add('on');
-  r.querySelector('.go').onclick=function(){ r.classList.remove('on'); au.play().catch(function(){}); };
-  r.querySelector('.x').onclick=function(){ r.classList.remove('on'); playPara(SEQ.length?SEQ[0].id:0,false); jumpTo(SEQ.length?SEQ[0].id:0); };
-  setTimeout(function(){ r.classList.remove('on'); }, 14000);
-}
 /* Chrome restores the scroll offset of a nested scroller after the content grows tall enough,
-   which lands some time after load and overrides the position we just restored. `scrollRestoration`
-   does not cover nested scrollers, so hold our target until it stops fighting or the reader
-   touches anything — whichever comes first. */
+   which lands some time after load and overrides the position we just restored.
+   `scrollRestoration` does not cover nested scrollers, so hold our target until it stops
+   fighting or the reader touches anything — whichever comes first. */
 function holdScroll(target, done){
-  var stop=false, t0=Date.now();
-  var prev=main.style.scrollBehavior; main.style.scrollBehavior='auto';
-  target=Math.max(0, target);
+  var stop=false, t0=Date.now(), prev=main.style.scrollBehavior;
+  main.style.scrollBehavior='auto'; target=Math.max(0,target);
   function release(){
     if(stop) return; stop=true;
     main.removeEventListener('scroll', watch);
-    ['wheel','touchstart','keydown','pointerdown'].forEach(function(e){
-      window.removeEventListener(e, release, true); });
-    main.style.scrollBehavior=prev;
-    if(done) done();
+    ['wheel','touchstart','keydown','pointerdown'].forEach(function(e){ window.removeEventListener(e, release, true); });
+    main.style.scrollBehavior=prev; if(done) done();
   }
   function watch(){
     if(stop) return;
@@ -662,13 +855,28 @@ function holdScroll(target, done){
   }
   main.scrollTop=target;
   main.addEventListener('scroll', watch);
-  ['wheel','touchstart','keydown','pointerdown'].forEach(function(e){
-    window.addEventListener(e, release, true); });
-  requestAnimationFrame(watch);
-  setTimeout(release, 2600);
+  ['wheel','touchstart','keydown','pointerdown'].forEach(function(e){ window.addEventListener(e, release, true); });
+  requestAnimationFrame(watch); setTimeout(release, 2600);
 }
-
-/* while the reader scrolls by hand, keep the thread honest without hijacking playback */
+function restore(server){
+  var local=lsGet(PKEY,null), s=local;
+  if(server && (!local || (server.ts||0)*1000 > (local.ts||0))) s=server;
+  if(!s || typeof s.id!=='number'){ setCur(SEQ.length?SEQ[0].id:0); return; }
+  restoring=true;
+  seek(s.f, s.t||0, false); setCur(s.id); markSentence(sentAt(s.id, s.t||0));
+  var el=document.getElementById('p'+s.id);
+  if(el) holdScroll(el.offsetTop-main.clientHeight*0.3, function(){ restoring=false; });
+  else restoring=false;
+  var ch=CH[chapterOf(s.id)], r=$('#resume');
+  r.innerHTML='<span class="lbl">上次读到 <b></b></span>'+
+    '<button class="go">继续朗读</button><button class="x">从头</button>';
+  r.querySelector('b').textContent=nicecase(ch?ch.title:'') + (s.t?(' · '+fmt(s.t)):'');
+  r.classList.add('on');
+  r.querySelector('.go').onclick=function(){ r.classList.remove('on'); au.play().catch(function(){}); };
+  r.querySelector('.x').onclick=function(){ r.classList.remove('on');
+    var f=SEQ.length?SEQ[0].id:0; playPara(f,false); jumpTo(f); };
+  setTimeout(function(){ r.classList.remove('on'); }, 14000);
+}
 function onScroll(){
   if(!D) return;
   var y=main.scrollTop+main.clientHeight*0.3, lo=0, hi=D.paras.length-1, id=0, el;
@@ -678,9 +886,10 @@ function onScroll(){
   $('#thread').style.width=(id/Math.max(1,D.paras.length-1)*100)+'%';
   var ci=chapterOf(id), links=toc.children, i;
   if(au.paused) for(i=0;i<links.length;i++) links[i].classList.toggle('cur', i===ci);
+  scheduleWrap();
 }
 
-/* ---------------------------------------------------------------- saved passages */
+/* ---------------------------------------------------------------- saved passages & words */
 function mergeMarks(a,b){
   var by={}, i;
   for(i=0;i<a.length;i++) if(a[i]&&a[i].k) by[a[i].k]=a[i];
@@ -689,18 +898,20 @@ function mergeMarks(a,b){
   out.sort(function(x,y){ return x.id-y.id; });
   return out;
 }
-function addMark(id, text){
+function addMark(id, text, kind){
   text=(text||'').replace(/\s+/g,' ').trim();
   if(!text) return;
-  var k=id+':'+text.slice(0,40);
-  for(var i=0;i<marks.length;i++) if(marks[i].k===k){ toast('这句已经在收藏里'); return; }
-  marks.push({k:k, id:id, text:text, note:'', ts:Date.now()});
+  kind=kind||'passage';
+  var k=kind+':'+(kind==='word'?text.toLowerCase():id+':'+text.slice(0,40));
+  for(var i=0;i<marks.length;i++) if(marks[i].k===k){ toast(kind==='word'?'这个词已经在生词本里':'这句已经在收藏里'); return; }
+  marks.push({k:k, id:id, kind:kind, text:text, note:'', ts:Date.now()});
   marks.sort(function(x,y){return x.id-y.id});
-  persistMarks(); paintMarks(); renderMarks(); toast('已收藏');
+  persistMarks(); paintMarks(); renderMarks(); renderWords();
+  toast(kind==='word'?'已加入生词本':'已收藏');
 }
 function dropMark(k){
   marks=marks.filter(function(m){return m.k!==k});
-  persistMarks(); paintMarks(); renderMarks(); toast('已移除');
+  persistMarks(); paintMarks(); renderMarks(); renderWords(); toast('已移除');
 }
 function persistMarks(){ lsSet(MKEY, marks); marksDirty=true; pushMarks(false); }
 function pushMarks(force){
@@ -715,29 +926,28 @@ function pushMarks(force){
   };
   if(force) send(); else pushMarks._t=setTimeout(send, 2500);
 }
+function passages(){ return marks.filter(function(m){ return (m.kind||'passage')!=='word'; }); }
+function vocab(){ return marks.filter(function(m){ return m.kind==='word'; }); }
 function paintMarks(){
   var had=book.querySelectorAll('.has-mark'), i;
   for(i=0;i<had.length;i++) had[i].classList.remove('has-mark');
-  for(i=0;i<marks.length;i++){
-    var el=document.getElementById('p'+marks[i].id);
-    if(el) el.classList.add('has-mark');
-  }
+  passages().forEach(function(m){
+    var el=document.getElementById('p'+m.id); if(el) el.classList.add('has-mark'); });
 }
 function renderMarks(){
-  var box=$('#marks');
-  $('#tabMark').textContent='收藏'+(marks.length?' '+marks.length:'');
-  if(!marks.length){
+  var box=$('#marks'), ms=passages();
+  $('#tabMark').textContent='收藏'+(ms.length?' '+ms.length:'');
+  if(!ms.length){
     box.innerHTML='<p class="empty">还没有收藏。<br>选中书里任意一句，点「收藏」；<br>或按 <kbd>M</kbd> 收下当前这一段。</p>';
     return;
   }
-  var h='', i, m;
-  for(i=0;i<marks.length;i++){
-    m=marks[i];
+  var h='';
+  ms.forEach(function(m){
     h+='<div class="markrow" data-k="'+esc(m.k)+'" data-id="'+m.id+'">'+
        '<blockquote>'+esc(m.text.length>220?m.text.slice(0,220)+'…':m.text)+'</blockquote>'+
        '<div class="c"><span>'+esc(nicecase(CH[chapterOf(m.id)]?CH[chapterOf(m.id)].title:''))+'</span>'+
        '<button class="del">移除</button></div></div>';
-  }
+  });
   box.innerHTML=h;
   box.onclick=function(e){
     var row=e.target.closest('.markrow'); if(!row) return;
@@ -745,8 +955,138 @@ function renderMarks(){
     jumpTo(+row.dataset.id); closeRail();
   };
 }
+function renderWords(){
+  var box=$('#words'), ws=vocab();
+  $('#tabWord').textContent='生词'+(ws.length?' '+ws.length:'');
+  if(!ws.length){
+    box.innerHTML='<p class="empty">还没有生词。<br><b>双击书里任意一个单词</b>，'+
+      '就能看到它在全书出现过几次、每次的原句，<br>再决定要不要收进来。<br>'+
+      '长按选中还可以调用系统词典。</p>';
+    return;
+  }
+  var h='<div class="paneact"><button id="wexp">复制为 TSV（可导入 Anki）</button>'+
+        '<button id="wclr">清空</button></div>';
+  ws.slice().sort(function(a,b){ return a.text.toLowerCase()<b.text.toLowerCase()?-1:1; }).forEach(function(m){
+    h+='<div class="wordrow" data-k="'+esc(m.k)+'" data-w="'+esc(m.text)+'">'+
+       '<b>'+esc(m.text)+'</b><span class="n">'+(wordCount(m.text)||'')+'</span>'+
+       '<button class="x">移除</button></div>';
+  });
+  box.innerHTML=h;
+  $('#wexp').onclick=exportWords;
+  $('#wclr').onclick=function(){ if(!confirm('清空生词本？')) return;
+    marks=passages(); persistMarks(); renderWords(); renderMarks(); };
+  box.onclick=function(e){
+    var row=e.target.closest('.wordrow'); if(!row) return;
+    if(e.target.classList.contains('x')){ dropMark(row.dataset.k); return; }
+    showWord(row.dataset.w);
+  };
+}
+function exportWords(){
+  var ws=vocab();
+  if(!ws.length) return;
+  var lines=ws.map(function(m){
+    var occ=wordIndex()[m.text.toLowerCase()];
+    var ex=occ&&occ.length ? sentenceText(occ[0]) : '';
+    return m.text+'\t'+ex.replace(/\t/g,' ')+'\t'+D.title;
+  });
+  var blob=lines.join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(blob).then(
+    function(){ toast(ws.length+' 个生词已复制到剪贴板'); },
+    function(){ fallbackCopy(blob, ws.length); });
+  else fallbackCopy(blob, ws.length);
+}
+function fallbackCopy(text, n){
+  var ta=document.createElement('textarea'); ta.value=text;
+  ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); toast(n+' 个生词已复制到剪贴板'); }
+  catch(e){ toast('复制失败，请手动选择'); }
+  document.body.removeChild(ta);
+}
 
-/* selection bubble */
+/* ---------------------------------------------------------------- word lookup
+   No dictionary ships with this page — it would be a megabyte of data and a licence problem, and
+   every phone and e-reader already has one behind a long press. What a dictionary cannot give you
+   is this book: how often the word occurs here and every sentence it occurs in. That is the part
+   worth building, and it is also what makes a word stick. */
+var WIDX=null, PLAIN=null;
+function plainOf(id){
+  if(!PLAIN) PLAIN={};
+  if(PLAIN[id]===undefined) PLAIN[id]=txt(D.paras[id].html);
+  return PLAIN[id];
+}
+function normWord(w){ return String(w).toLowerCase().replace(/[’]/g,"'").replace(/^[^a-z0-9']+|[^a-z0-9']+$/g,''); }
+function wordIndex(){
+  if(WIDX) return WIDX;
+  WIDX={};
+  var re=/[A-Za-z][A-Za-z'’-]*/g;
+  for(var i=0;i<D.paras.length;i++){
+    var t=plainOf(D.paras[i].id), m;
+    re.lastIndex=0;
+    while((m=re.exec(t))){
+      var w=normWord(m[0]); if(w.length<2) continue;
+      (WIDX[w] || (WIDX[w]=[])).push([D.paras[i].id, m.index]);
+    }
+  }
+  return WIDX;
+}
+function wordCount(w){ var a=wordIndex()[normWord(w)]; return a?a.length:0; }
+function sentenceText(occ){
+  var id=occ[0], at=occ[1], t=plainOf(id), p=D.paras[id];
+  if(p.t && p.t.sent){
+    for(var i=0;i<p.t.sent.length;i++)
+      if(at>=p.t.sent[i][0] && at<p.t.sent[i][1]) return t.slice(p.t.sent[i][0], p.t.sent[i][1]).trim();
+  }
+  var a=Math.max(0,at-90), b=Math.min(t.length, at+120);
+  return (a?'…':'')+t.slice(a,b).trim()+(b<t.length?'…':'');
+}
+function showWord(w){
+  w=normWord(w);
+  if(!w){ return; }
+  var occ=wordIndex()[w] || [];
+  $('#wpword').textContent=w;
+  $('#wpcount').textContent=occ.length ? ('全书 '+occ.length+' 处') : '全书未出现';
+  var saved=vocab().some(function(m){ return normWord(m.text)===w; });
+  var b=$('#wpsave');
+  b.textContent=saved?'已在生词本':'加入生词本';
+  b.classList.toggle('hot', saved);
+  b.onclick=function(){
+    if(saved){ var m=vocab().filter(function(x){return normWord(x.text)===w})[0];
+               if(m) dropMark(m.k); showWord(w); return; }
+    addMark(curId>=0?curId:(occ[0]?occ[0][0]:0), w, 'word'); showWord(w);
+  };
+  var h='', n=Math.min(occ.length, 60);
+  for(var i=0;i<n;i++){
+    var s=sentenceText(occ[i]);
+    var re=new RegExp('\\b('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')\\b','ig');
+    h+='<div class="wpline" data-id="'+occ[i][0]+'" data-at="'+occ[i][1]+'">'+
+       '<span class="c">'+esc(nicecase(CH[chapterOf(occ[i][0])]?CH[chapterOf(occ[i][0])].title:''))+'</span>'+
+       esc(s).replace(re,'<b>$1</b>')+'</div>';
+  }
+  if(occ.length>n) h+='<p class="empty">还有 '+(occ.length-n)+' 处未列出</p>';
+  $('#wpbody').innerHTML=h||'<p class="empty">这个词不在本书里。</p>';
+  $('#wpbody').onclick=function(e){
+    var row=e.target.closest('.wpline'); if(!row) return;
+    var id=+row.dataset.id, at=+row.dataset.at, p=D.paras[id];
+    jumpTo(id);
+    if(p.t && p.t.sent){
+      for(var i=0;i<p.t.sent.length;i++) if(at>=p.t.sent[i][0] && at<p.t.sent[i][1]){
+        setCur(id); seek(p.t.f, p.t.sent[i][2], true);
+        markSentence({id:id,i:i,s:p.t.sent[i][2],e:p.t.sent[i][3]}); return; }
+    }
+    if(p.t) playPara(id, true);
+  };
+  $('#wordpanel').classList.add('on');
+}
+$('#wpclose').onclick=function(){ $('#wordpanel').classList.remove('on'); };
+function onBookDblClick(e){
+  var sel=String(window.getSelection()||'').trim();
+  if(!sel || /\s/.test(sel)) return;
+  if(normWord(sel).length<2) return;
+  showWord(sel);
+}
+
+/* ---------------------------------------------------------------- selection bubble */
 var bubble=$('#bubble'), selPara=-1, selText='';
 function hideBubble(){ bubble.classList.remove('on'); }
 function showBubble(){
@@ -758,23 +1098,23 @@ function showBubble(){
   while(el && el!==book && !/^p\d+$/.test(el.id||'')) el=el.parentElement;
   if(!el || el===book){ hideBubble(); return; }
   selPara=+el.id.slice(1); selText=t;
+  $('#bWord').style.display = /\s/.test(t) ? 'none' : '';
   var r=sel.getRangeAt(0).getBoundingClientRect(), s=$('#stage').getBoundingClientRect();
   bubble.classList.add('on');
-  var bw=bubble.offsetWidth||160;
-  var left=Math.min(Math.max(8, r.left-s.left+r.width/2-bw/2), s.width-bw-8);
-  bubble.style.left=left+'px';
+  var bw=bubble.offsetWidth||200;
+  bubble.style.left=Math.min(Math.max(8, r.left-s.left+r.width/2-bw/2), s.width-bw-8)+'px';
   bubble.style.top=Math.max(4, r.top-s.top-bubble.offsetHeight-8)+'px';
 }
 document.addEventListener('selectionchange', function(){
   clearTimeout(showBubble._t); showBubble._t=setTimeout(showBubble, 90); });
 // Re-anchor rather than hide: the bubble would otherwise vanish the moment playback starts and
-// the page follows along, which is exactly when a reader is trying to save the line they heard.
+// the page follows along, which is exactly when a reader wants to keep the line they just heard.
 main.addEventListener('scroll', function(){
-  if(!bubble.classList.contains('on')) return;
-  if(showBubble._r) return;
+  if(!bubble.classList.contains('on') || showBubble._r) return;
   showBubble._r=requestAnimationFrame(function(){ showBubble._r=0; showBubble(); });
 }, {passive:true});
 $('#bMark').onclick=function(){ addMark(selPara, selText); window.getSelection().removeAllRanges(); hideBubble(); };
+$('#bWord').onclick=function(){ showWord(selText); window.getSelection().removeAllRanges(); hideBubble(); };
 $('#bPlay').onclick=function(){ playPara(selPara, true); window.getSelection().removeAllRanges(); hideBubble(); };
 
 /* ---------------------------------------------------------------- search */
@@ -783,21 +1123,20 @@ function buildIndex(){
   if(IDX) return IDX;
   IDX=[];
   for(var i=0;i<D.paras.length;i++){
-    var t=txt(D.paras[i].html);
+    var t=plainOf(D.paras[i].id);
     if(t) IDX.push({id:D.paras[i].id, t:t, l:t.toLowerCase()});
   }
   return IDX;
 }
 function runSearch(){
-  var q=$('#q').value.trim();
-  var out=$('#qout'), hint=$('#qhint');
+  var q=$('#q').value.trim(), out=$('#qout'), hint=$('#qhint');
   if(q.length<2){ out.innerHTML=''; hint.textContent=q?'再多输入一个字':'按标题、人名或原句搜索全书。'; return; }
   var ix=buildIndex(), lq=q.toLowerCase(), hits=[], i;
   for(i=0;i<ix.length && hits.length<200;i++){
     var k=ix[i].l.indexOf(lq);
     if(k>=0) hits.push({id:ix[i].id, t:ix[i].t, k:k});
   }
-  hint.textContent=hits.length? (hits.length>=200?'200+ 处（只显示前 200 处）':hits.length+' 处') : '没有找到。';
+  hint.textContent=hits.length ? (hits.length>=200?'200+ 处（只显示前 200 处）':hits.length+' 处') : '没有找到。';
   var h='';
   for(i=0;i<hits.length;i++){
     var s=hits[i], a=Math.max(0,s.k-64), b=Math.min(s.t.length, s.k+q.length+96);
@@ -812,26 +1151,31 @@ function runSearch(){
 $('#q').addEventListener('input', function(){ clearTimeout(runSearch._t); runSearch._t=setTimeout(runSearch,140); });
 $('#q').addEventListener('keydown', function(e){ if(e.key==='Escape'){ this.value=''; runSearch(); this.blur(); } });
 
-/* ---------------------------------------------------------------- tabs, rail, sheet */
+/* ---------------------------------------------------------------- chrome */
 function tab(name){
-  var m={toc:'#tabToc', find:'#tabFind', marks:'#tabMark'};
-  for(var k in m){
-    $(m[k]).setAttribute('aria-selected', String(k===name));
-    $('#'+k).hidden = (k!==name);
-  }
+  var m={toc:'#tabToc', find:'#tabFind', marks:'#tabMark', words:'#tabWord'};
+  for(var k in m){ $(m[k]).setAttribute('aria-selected', String(k===name)); $('#'+k).hidden=(k!==name); }
   if(name==='find') setTimeout(function(){ $('#q').focus(); }, 30);
 }
 $('#tabToc').onclick=function(){ tab('toc') };
 $('#tabFind').onclick=function(){ tab('find') };
 $('#tabMark').onclick=function(){ tab('marks') };
+$('#tabWord').onclick=function(){ tab('words') };
 
 function openRail(){ rail.classList.add('on'); $('#scrim').classList.add('on'); }
-function closeRail(){ rail.classList.remove('on'); if(!$('#sheet').classList.contains('on')) $('#scrim').classList.remove('on'); }
+function closeRail(){ rail.classList.remove('on');
+  if(!document.querySelector('.sheet.on')) $('#scrim').classList.remove('on'); }
 $('#railbtn').onclick=function(){ rail.classList.contains('on')?closeRail():openRail(); };
-$('#scrim').onclick=function(){ closeRail(); closeSheet(); };
-function openSheet(){ $('#sheet').classList.add('on'); $('#scrim').classList.add('on'); syncSheet(); }
-function closeSheet(){ $('#sheet').classList.remove('on'); if(!rail.classList.contains('on')) $('#scrim').classList.remove('on'); }
-$('#settingsbtn').onclick=function(){ $('#sheet').classList.contains('on')?closeSheet():openSheet(); };
+$('#scrim').onclick=function(){ closeRail(); closeSheets(); };
+function openSheet(id){
+  closeSheets(); $(id).classList.add('on'); $('#scrim').classList.add('on'); syncSheet(); }
+function closeSheets(){
+  var s=document.querySelectorAll('.sheet.on'), i;
+  for(i=0;i<s.length;i++) s[i].classList.remove('on');
+  if(!rail.classList.contains('on')) $('#scrim').classList.remove('on');
+}
+$('#settingsbtn').onclick=function(){ $('#sheet').classList.contains('on')?closeSheets():openSheet('#sheet'); };
+$('#drill').onclick=function(){ $('#practice').classList.contains('on')?closeSheets():openSheet('#practice'); };
 
 function wireSeg(id, key, cast){
   $(id).onclick=function(e){
@@ -842,11 +1186,14 @@ function wireSeg(id, key, cast){
     // worth nudging up once. Anything they set by hand is left alone.
     if(key==='theme' && v==='eink' && !P.sizeSet) P.size=Math.max(P.size, 21);
     P[key]=v; savePrefs();
+    if(key==='sent'){ if(+v) reWrapVisible(); else clearSentences(); }
+    if(key==='loop' || key==='times') loopLeft=+P.times;
   };
 }
 wireSeg('#segTheme','theme'); wireSeg('#segFont','font');
 wireSeg('#segIndent','indent',Number); wireSeg('#segFollow','follow',Number);
-wireSeg('#segSleep','sleep',Number);
+wireSeg('#segSleep','sleep',Number); wireSeg('#segSent','sent',Number);
+wireSeg('#segLoop','loop'); wireSeg('#segTimes','times',Number); wireSeg('#segGap','gap',Number);
 function wireStep(id, key, step, lo, hi, round, after){
   $(id).onclick=function(e){
     var b=e.target.closest('button'); if(!b||!b.dataset.d) return;
@@ -860,6 +1207,13 @@ wireStep('#stpSize','size',1,14,30,false,function(){ P.sizeSet=1; });
 wireStep('#stpLead','lead',0.08,1.3,2.4,true);
 wireStep('#stpWide','wide',2,24,52);
 if(P.sleep) setSleep(P.sleep);
+loopLeft=+P.times;
+
+function clearSentences(){
+  var sp=book.querySelectorAll('.sn'), i;
+  for(i=0;i<sp.length;i++) sp[i].classList.remove('on');
+}
+function reWrapVisible(){ if(curId>=0) ensureWrapped(curId); wrapNear(); }
 
 /* ---------------------------------------------------------------- keyboard */
 document.addEventListener('keydown', function(e){
@@ -868,21 +1222,19 @@ document.addEventListener('keydown', function(e){
   if(e.metaKey||e.ctrlKey||e.altKey) return;
   switch(e.key){
     case ' ': e.preventDefault(); $('#play').click(); break;
-    case 'ArrowLeft':  e.preventDefault(); $('#back15').click(); break;
-    case 'ArrowRight': e.preventDefault(); $('#fwd15').click(); break;
-    case 'j': step(1); break;
-    case 'k': step(-1); break;
+    case 'ArrowLeft':  e.preventDefault(); $('#back5').click(); break;
+    case 'ArrowRight': e.preventDefault(); $('#fwd5').click(); break;
+    case 'j': stepSent(1); break;
+    case 'k': stepSent(-1); break;
+    case 'r': $('#again').click(); break;
+    case 'd': $('#drill').click(); break;
     case 'm': if(curId>=0) addMark(curId, txt(D.paras[curId].html)); break;
+    case 'w': var s=String(window.getSelection()||'').trim(); if(s) showWord(s); break;
     case '/': e.preventDefault(); openRail(); tab('find'); break;
     case 't': openRail(); tab('toc'); break;
-    case 'Escape': closeRail(); closeSheet(); hideBubble(); break;
+    case 'Escape': closeRail(); closeSheets(); hideBubble();
+                   $('#wordpanel').classList.remove('on'); break;
   }
 });
-function step(k){
-  var i=-1, j;
-  for(j=0;j<SEQ.length;j++) if(SEQ[j].id===curId){ i=j; break; }
-  if(i<0){ if(SEQ.length) playPara(SEQ[0].id, !au.paused); return; }
-  var n=SEQ[i+k]; if(n) playPara(n.id, !au.paused);
-}
 </script>
 </body></html>

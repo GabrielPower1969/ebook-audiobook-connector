@@ -8,8 +8,8 @@
   GET  /api/marks/<slug>       → [mark, ...]
   POST /api/marks/<slug>       ← {items: [mark, ...]}          replaces this book's list
 
-A mark is {k, id, text, note, ts}: k is a client-generated key so the same passage saved on two
-devices merges instead of doubling. The browser keeps the same list in localStorage, so an
+A mark is {k, id, kind, text, note, ts}: `kind` is "passage" or "word", and `k` is a
+client-generated key so the same item saved on two devices merges instead of doubling. The browser keeps the same list in localStorage, so an
 anonymous LAN reader loses nothing — it simply never leaves the device.
 
 Progress is stored per user under <library>/_progress/<sha1(email)>.json. Identity comes from
@@ -75,7 +75,9 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
                 for it in items:
                     if not isinstance(it, dict):
                         continue
+                    kind = str(it.get("kind", "passage"))[:16]
                     clean.append({"k": str(it.get("k", ""))[:64], "id": int(it.get("id", 0)),
+                                  "kind": kind if kind in ("passage", "word") else "passage",
                                   "text": str(it.get("text", ""))[:2000], "note": str(it.get("note", ""))[:2000],
                                   "ts": int(it.get("ts", 0))})
                 with lock:
@@ -123,8 +125,10 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
             fp = os.path.abspath(os.path.join(ROOT, path))
             if os.path.isdir(fp): fp = os.path.join(fp, "index.html")
             if not fp.startswith(ROOT): self.send_error(404); return
-            if not os.path.isfile(fp) and APP and path.endswith(".html") and "/" not in path:
-                fp = os.path.join(APP, path)            # index.html / reader.html live in the package
+            if not os.path.isfile(fp) and APP and "/" not in path and \
+                    os.path.splitext(path)[1] in (".html", ".svg", ".png", ".ico", ".webmanifest"):
+                fp = os.path.join(APP, path)            # the reader's pages and its own assets
+                                                        # live in the package; library/ is data only
             if not os.path.isfile(fp): self.send_error(404); return
             ctype = mimetypes.guess_type(fp)[0] or "application/octet-stream"
             # Pre-compressed sibling (build writes data.json.gz). Only without a Range request:

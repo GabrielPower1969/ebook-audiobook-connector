@@ -12,13 +12,55 @@ import bisect, re
 NUM = {"0":"zero","1":"one","2":"two","3":"three","4":"four","5":"five","6":"six","7":"seven","8":"eight","9":"nine","10":"ten"}
 CJK = re.compile(r"[぀-ヿ㐀-鿿]")
 
+WORD = re.compile(r"[\w'’]+|[぀-ヿ㐀-鿿]")
+
+def _norm_tok(w: str) -> str | None:
+    if CJK.match(w): return w
+    w = re.sub(r"[^\w]", "", w.lower().replace("’", "'"))
+    return NUM.get(w, w) if w else None
+
 def tokens(text: str) -> list[str]:
     out = []
-    for w in re.findall(r"[\w'’]+|[぀-ヿ㐀-鿿]", text):
-        if CJK.match(w): out.append(w); continue
-        w = re.sub(r"[^\w]", "", w.lower().replace("’", "'"))
-        if w: out.append(NUM.get(w, w))
+    for m in WORD.finditer(text):
+        t = _norm_tok(m.group())
+        if t: out.append(t)
     return out
+
+def tokens_pos(text: str) -> list[tuple[str, int]]:
+    """tokens(), but each paired with the character offset it starts at in `text`."""
+    out = []
+    for m in WORD.finditer(text):
+        t = _norm_tok(m.group())
+        if t: out.append((t, m.start()))
+    return out
+
+
+# A sentence ends at . ! ? … or a Chinese 。！？ — but not inside "Mr." or "e.g.", and the run of
+# closing quotes and brackets after the stop belongs to the sentence that is ending.
+ABBR = {"mr", "mrs", "ms", "dr", "st", "prof", "sr", "jr", "vs", "etc", "e.g", "i.e", "no", "vol",
+        "fig", "inc", "ltd", "co", "u.s", "a.m", "p.m"}
+_STOP = re.compile(r"[.!?…。！？]+[\"'”’)\]]*")
+
+def sentences(text: str) -> list[tuple[int, int]]:
+    """Character ranges of the sentences in `text`. Always covers the whole string."""
+    out, start = [], 0
+    for m in _STOP.finditer(text):
+        end = m.end()
+        head = text[start:end]
+        word = re.search(r"([\w.]+)[.!?…]*[\"'”’)\]]*$", head)
+        if word and word.group(1).rstrip(".").lower() in ABBR:
+            continue                                    # "Mr." is not the end of a sentence
+        if end < len(text) and not re.match(r"\s", text[end]):
+            continue                                    # "3.5" — a stop with no space after it
+        while end < len(text) and text[end].isspace():
+            end += 1
+        if end - start < 2:
+            continue
+        out.append((start, end))
+        start = end
+    if start < len(text):
+        out.append((start, len(text)))
+    return out or [(0, len(text))]
 
 def _anchors(bt, tt, b0, b1, t0, t1, n):
     if b1 - b0 < n or t1 - t0 < n: return []
@@ -49,10 +91,20 @@ def _refine(bt, tt, b0, b1, t0, t1, ns=(6, 4, 3, 2)):
     return res
 
 def align(paras: list[dict], transcripts: list[dict]) -> dict:
-    """paras: [{id, tag, text}], transcripts: [{file, words:[{w,s,e}]}] → {files, paras:[None|{f,s,e,d}], stats}"""
-    bt, bpara = [], []
+    """paras: [{id, tag, text}], transcripts: [{file, words:[{w,s,e}]}]
+    → {files, paras:[None|{f,s,e,d,sent}], stats}
+
+    `sent` is [[charStart, charEnd, start, end], …] — one entry per sentence of the paragraph, with
+    character offsets into the paragraph's plain text so the reader can wrap the exact same spans
+    in the DOM. It is what makes replaying a single sentence possible, which is the whole game for
+    a language learner."""
+    bt, bpara, bsent = [], [], []
     for p in paras:
-        for w in tokens(p["text"]): bt.append(w); bpara.append(p["id"])
+        sents = sentences(p["text"])
+        k = 0
+        for w, c in tokens_pos(p["text"]):
+            while k + 1 < len(sents) and c >= sents[k][1]: k += 1
+            bt.append(w); bpara.append(p["id"]); bsent.append((p["id"], k))
     tt, tinfo = [], []
     for fi, tr in enumerate(transcripts):
         for w in tr["words"]:
@@ -69,7 +121,10 @@ def align(paras: list[dict], transcripts: list[dict]) -> dict:
         return min(max(t0 + round((bi - b0) * (t1 - t0) / max(1, b1 - b0)), t0), t1), dist
 
     first, last = {}, {}
+    sfirst: dict[tuple[int, int], int] = {}
+    slast: dict[tuple[int, int], int] = {}
     for i, pid in enumerate(bpara): first.setdefault(pid, i); last[pid] = i
+    for i, key in enumerate(bsent): sfirst.setdefault(key, i); slast[key] = i
     out = []
     for p in paras:
         pid = p["id"]
@@ -79,7 +134,24 @@ def align(paras: list[dict], transcripts: list[dict]) -> dict:
         if m is None or not (has_anchor or (p["tag"] != "p" and m[1] <= 3)): out.append(None); continue
         fi, s, _ = tinfo[m[0]]
         e = tinfo[m2[0]][2] if m2 and tinfo[m2[0]][0] == fi else None
-        out.append({"f": fi, "s": round(s, 2), "e": round(e, 2) if e else None, "d": m[1]})
+        rec = {"f": fi, "s": round(s, 2), "e": round(e, 2) if e else None, "d": m[1]}
+        # Sentence spans: only those that land in the same audio file and stay inside the
+        # paragraph's own window, so a bad mapping can shrink the feature but never mislead.
+        sents = sentences(p["text"])
+        span = []
+        for k, (c0, c1) in enumerate(sents):
+            a, b = sfirst.get((pid, k)), slast.get((pid, k))
+            if a is None: continue
+            ma, mb = map_idx(a), map_idx(b)
+            if ma is None or tinfo[ma[0]][0] != fi: continue
+            ss = tinfo[ma[0]][1]
+            se = tinfo[mb[0]][2] if mb and tinfo[mb[0]][0] == fi else None
+            if ss < rec["s"] - 1 or (rec["e"] and ss > rec["e"] + 1): continue
+            span.append([c0, c1, round(ss, 2), round(se, 2) if se else None])
+        if len(span) > 1:                    # one sentence per paragraph adds nothing over `s`/`e`
+            rec["sent"] = span
+        out.append(rec)
     stats = {"book_tokens": len(bt), "audio_tokens": len(tt), "anchors": len(A),
-             "aligned": sum(1 for x in out if x), "exact": sum(1 for x in out if x and x["d"] == 0), "paragraphs": len(out)}
+             "aligned": sum(1 for x in out if x), "exact": sum(1 for x in out if x and x["d"] == 0),
+             "sentences": sum(len(x.get("sent", ())) for x in out if x), "paragraphs": len(out)}
     return {"files": [t["file"] for t in transcripts], "paras": out, "stats": stats}

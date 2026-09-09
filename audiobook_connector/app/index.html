@@ -2,6 +2,7 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
+<link rel="icon" href="favicon.ico">
 <title>书房</title>
 <style>
 :root{
@@ -50,8 +51,16 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 /* ---------------------------------------------------------------- header */
 header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line-2)}
 .bar{display:flex;align-items:center;gap:14px;height:62px}
-.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.02em;flex:none}
-.logo .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px;letter-spacing:-.02em;flex:none}
+.logo .fg{width:24px;height:24px;flex:none;display:block}
+:root[data-theme="dark"] .fg-light{display:none}
+:root:not([data-theme="dark"]) .fg-dark{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-theme="eink"]) .fg-light{display:none}
+  :root:not([data-theme="light"]):not([data-theme="eink"]) .fg-dark{display:block}
+}
+:root[data-theme="eink"] .fg-dark{display:none!important}
+:root[data-theme="eink"] .fg-light{display:block!important;filter:grayscale(1) contrast(3)}
 .logo small{font-weight:500;font-size:13px;color:var(--muted);letter-spacing:0}
 .spacer{flex:1}
 #q{width:min(300px,42vw);padding:8px 14px;border:1px solid var(--line);border-radius:999px;
@@ -106,7 +115,9 @@ section{margin:38px 0}
        color:var(--muted);line-height:1.9}
 .empty code{font:12.5px/1.6 var(--mono);background:var(--accent-soft);color:var(--accent);
        padding:3px 8px;border-radius:5px}
-footer{color:var(--muted);font-size:12.5px;padding:30px 0 44px;border-top:1px solid var(--line-2);margin-top:40px}
+footer{color:var(--muted);font-size:12.5px;padding:26px 0 44px;border-top:1px solid var(--line-2);
+        margin-top:40px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+footer .fg{width:16px;height:16px;flex:none;opacity:.8}
 
 @media (max-width:640px){
   .wrap{padding:0 16px}
@@ -119,7 +130,9 @@ footer{color:var(--muted);font-size:12.5px;padding:30px 0 44px;border-top:1px so
 <body>
 
 <header><div class="wrap bar">
-  <span class="logo"><span class="dot"></span>书房 <small>听读同行</small></span>
+  <span class="logo">
+    <img class="fg fg-light" src="flowgt.svg" alt="FlowGT"><img class="fg fg-dark" src="flowgt-reverse.svg" alt="">
+    书房 <small>听读同行</small></span>
   <span class="spacer"></span>
   <input id="q" type="search" placeholder="搜书名、作者、朗读者" autocomplete="off">
   <span id="who"></span>
@@ -132,6 +145,7 @@ footer{color:var(--muted);font-size:12.5px;padding:30px 0 44px;border-top:1px so
 </main>
 
 <footer class="wrap">
+  <img class="fg fg-light" src="flowgt.svg" alt="FlowGT"><img class="fg fg-dark" src="flowgt-reverse.svg" alt="">
   <span id="stat"></span>
 </footer>
 

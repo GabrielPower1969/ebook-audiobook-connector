@@ -24,4 +24,4 @@ build-backend = "setuptools.build_meta"
 include = ["audiobook_connector*"]
 
 [tool.setuptools.package-data]
-audiobook_connector = ["app/*.html"]
+audiobook_connector = ["app/*.html", "app/*.svg", "app/*.ico"]

@@ -102,7 +102,8 @@ def cmd_build(a):
     al = aligner.align([{"id": p.id, "tag": p.tag, "text": p.text} for p in book.paras], trs)
     st = al["stats"]
     pct = 100 * st["aligned"] / max(1, st["paragraphs"])
-    print(f"aligned: {st['aligned']}/{st['paragraphs']} paragraphs ({pct:.0f}%, {st['exact']} exact)")
+    print(f"aligned: {st['aligned']}/{st['paragraphs']} paragraphs ({pct:.0f}%, {st['exact']} exact)"
+          + (f", {st['sentences']} sentences" if st.get("sentences") else ""))
     if pct < 20:
         print("  ⚠ low alignment — check that the epub and the audio are the same edition,"
               "\n    and that --language matches the book if auto-detection went wrong.")
