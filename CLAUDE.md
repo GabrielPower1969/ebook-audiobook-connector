@@ -55,7 +55,7 @@ scripts/               import-book.py  one title      import-series.py  a multi-
                        cache-status.py how far transcription got   build-ready.py  build what is ready
                        verify-text.py  cross-check the shown text against the audio
                        build-dict.py   library-scoped dictionary from ECDICT → library/_dict/
-                       package.sh      a folder another machine can run with no install
+                       package.py      a folder/zip that runs by double-clicking index.html
                        backup.sh       library + transcripts + dictionary, verified
 books/<name>/          INPUT: one .epub + audio files (+cover.jpg, +book.json). git-ignored.
                        book.json: title, author, series, volume, narrator, language, chapters[]
@@ -83,6 +83,12 @@ library/_dict/         dict.json(+.gz): only the words this library uses. Fetche
   listens never pays for it. Text selection is still never hijacked: long-press must keep reaching
   the device's own dictionary, and the concordance (how often a word occurs in *this book*, and
   every sentence it occurs in) is the part no dictionary can give you.
+- **The pages run from a plain folder as well as from the server.** `fetch()` is blocked on
+  `file://` by every browser, but a `<script>` tag is not, so `package.py` writes each data file
+  twice — `data.json` and a `data.js` assigning a global — and the pages choose by
+  `location.protocol`, prefixing `library/` when unserved. localStorage still works on `file://`,
+  so reading position and vocabulary survive; only cross-device sync needs the server. Audio
+  symlinks are dereferenced into the package because a zip cannot carry them onto Windows.
 - **Sentence spans are wrapped lazily, driven by scroll position** — not by an IntersectionObserver
   rooted on the scroller, which never fires while the tab is hidden or the pane is collapsed and
   leaves the sentence layer silently missing. Wrapping all 93k sentences up front would add tens of
@@ -102,7 +108,10 @@ library/_dict/         dict.json(+.gz): only the words this library uses. Fetche
 - Change architecture → update this file in the same commit.
 
 ## Known limits / next steps
-- Only tested on one English book. CJK tokenization exists in `align.py` but is unverified.
+- Only tested on English books. CJK tokenization exists in `align.py` but is unverified.
+- Alignment is reported two ways. Paragraph count is the historical figure and misleads: a book's
+  index is hundreds of two-word paragraphs nobody narrates, which is why Zero to One reads "50 %"
+  while 94 % of its words are aligned. Word coverage is the number to trust and what the shelf shows.
 - PDF input is heuristic (tested on a synthetic reportlab fixture only); MOBI/AZW3 path is untested until a real file arrives. Scanned PDFs (no text layer) are not supported.
 - CPU transcription (Docker) runs at about real time: measured 60 s of audio → 65 s, large-v3-turbo int8, 4 threads, Docker on an M-series Mac. mlx on the same Mac: ~14× real time. Recommend `--model small` on CPU or building once on Apple Silicon.
 - No auth on the server — it is meant for a trusted LAN only.

@@ -403,8 +403,30 @@ var au=$('#au'), book=$('#book'), main=$('#main'), rail=$('#rail'), toc=$('#toc'
 // the previous visit happened to be — overriding the reading position we are about to set.
 try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
 
+/* Two ways to run. Served by `audiobook-connector serve`, the library is the web root and the
+   JSON is fetched. Opened straight off a disk — the portable copy, double-clicked — `fetch` is
+   blocked on file:// by every browser, but a <script> tag is not: the same data is written beside
+   it as .js assigning a global, and the library sits one folder down. localStorage still works, so
+   reading position and vocabulary survive; only the shared-across-devices part needs the server. */
+var FILE = location.protocol === 'file:';
+var ROOT = FILE ? 'library/' : '';
+function loadData(path, name){
+  if(!FILE) return fetch(ROOT+path+'.json').then(function(r){ if(!r.ok) throw new Error(path); return r.json(); });
+  return new Promise(function(res, rej){
+    var s=document.createElement('script');
+    s.src=ROOT+path+'.js';
+    s.onload=function(){ res(window[name]); };
+    s.onerror=function(){ rej(new Error(s.src)); };
+    document.head.appendChild(s);
+  });
+}
+function api(path, dflt){
+  if(FILE) return Promise.resolve(dflt);
+  return fetch(path).then(function(r){ return r.ok?r.json():dflt; }).catch(function(){ return dflt; });
+}
+
 var SLUG=new URLSearchParams(location.search).get('book')||'';
-var BASE=SLUG+'/', PKEY='ac:pos:'+SLUG, MKEY='ac:marks:'+SLUG, PREFKEY='ac:prefs';
+var BASE=ROOT+SLUG+'/', PKEY='ac:pos:'+SLUG, MKEY='ac:marks:'+SLUG, PREFKEY='ac:prefs';
 var D=null, SEQ=[], CH=[], curId=-1, curFile=-1, ME={user:'local',auth:'local'};
 var marks=[], marksDirty=false, lastSave=0, restoring=false;
 var curSent=null;                       // {id, i, s, e}
@@ -454,10 +476,10 @@ applyPrefs();
 
 /* ---------------------------------------------------------------- load */
 Promise.all([
-  fetch(BASE+'data.json').then(function(r){ if(!r.ok) throw 0; return r.json(); }),
-  fetch('api/me').then(function(r){return r.ok?r.json():ME}).catch(function(){return ME}),
-  fetch('api/progress/'+encodeURIComponent(SLUG)).then(function(r){return r.ok?r.json():{}}).catch(function(){return{}}),
-  fetch('api/marks/'+encodeURIComponent(SLUG)).then(function(r){return r.ok?r.json():[]}).catch(function(){return[]})
+  loadData(SLUG+'/data', '__AC_BOOK'),
+  api('api/me', ME),
+  api('api/progress/'+encodeURIComponent(SLUG), {}),
+  api('api/marks/'+encodeURIComponent(SLUG), [])
 ]).then(function(a){
   D=a[0]; ME=a[1];
   document.title=D.title;
@@ -600,11 +622,19 @@ function paraAt(y){
 }
 function wrapNear(){
   if(!D || !+P.sent) return;
-  var h=main.clientHeight || 800;
+  var h=main.clientHeight, i, n=0, el;
+  if(!h){
+    // No layout yet — a background tab, or a pane that has not been shown. Every offsetTop reads
+    // 0, so a scroll-position search would land at the end of the book; work from the cursor.
+    for(i=Math.max(0,curId); i<D.paras.length && n<40; i++){
+      el=document.getElementById('p'+i);
+      if(el && !el.dataset.w){ ensureWrapped(i); n++; }
+    }
+    return;
+  }
   var top=Math.max(0, main.scrollTop-h), bot=main.scrollTop+2*h;
-  var i=paraAt(top), n=0;
-  for(; i<D.paras.length && n<80; i++){
-    var el=document.getElementById('p'+i);
+  for(i=paraAt(top); i<D.paras.length && n<80; i++){
+    el=document.getElementById('p'+i);
     if(!el) break;
     if(el.offsetTop>bot) break;
     if(!el.dataset.w){ ensureWrapped(i); n++; }
@@ -840,7 +870,7 @@ function savePos(force){
   if(curId<0 || curFile<0 || restoring) return;
   var rec={id:curId, f:curFile, t:au.currentTime, ts:Date.now()};
   lsSet(PKEY, rec);
-  if(ME.auth==='local') return;
+  if(FILE || ME.auth==='local') return;
   var now=Date.now(); if(!force && now-lastSave<8000) return; lastSave=now;
   var body=JSON.stringify({id:rec.id,f:rec.f,t:rec.t}), url='api/progress/'+encodeURIComponent(SLUG);
   if(force && navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body],{type:'application/json'}));
@@ -930,7 +960,7 @@ function dropMark(k){
 }
 function persistMarks(){ lsSet(MKEY, marks); marksDirty=true; pushMarks(false); }
 function pushMarks(force){
-  if(!marksDirty || ME.auth==='local') return;
+  if(FILE || !marksDirty || ME.auth==='local') return;
   if(!force && pushMarks._t) return;
   clearTimeout(pushMarks._t);
   var send=function(){
@@ -1066,8 +1096,7 @@ function sentenceText(occ){
 var DICT=null, DICTP=null;
 function loadDict(){
   if(DICT) return Promise.resolve(DICT);
-  if(!DICTP) DICTP=fetch('_dict/dict.json')
-    .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+  if(!DICTP) DICTP=loadData('_dict/dict', '__AC_DICT')
     .then(function(d){ DICT=d; return d; })
     .catch(function(){ DICT={w:{},e:[],missing:1}; return DICT; });
   return DICTP;

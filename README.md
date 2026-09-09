@@ -84,11 +84,13 @@ Identity comes from the header, positions are stored per email, and the tunnel h
 ## Copy it to another machine
 
 ```bash
-scripts/package.sh                          # → dist/audiobook-connector-portable/
-scripts/package.sh /Volumes/Drive --only hp1-philosophers-stone,zero-to-one
+scripts/package.py --zip                    # → dist/FlowGT-书房.zip
+scripts/package.py --dest /Volumes/Drive --only hp1-philosophers-stone,zero-to-one
 ```
 
-The folder holds the package, the library, the audio, the dictionary, and a launcher for each platform — double-click `开始阅读.command` on macOS, `run.sh` on Linux, `run.bat` on Windows. **The other machine needs Python 3.10 and nothing else**: serving is pure standard library, so there is no install step and no network access required. The script sizes the audio before copying and stops rather than filling a disk, then checks that every audio symlink resolves and every `data.json` arrived.
+**Unzip, double-click `index.html`, read.** No install, no server, no network — the whole reader runs off the folder. `fetch()` is blocked on `file://`, so the packager writes every data file twice, once as JSON for the served mode and once as a `.js` that assigns a global, and the pages choose by protocol. Audio symlinks are dereferenced so the zip works on Windows. Reading position and vocabulary still persist, in that browser's storage.
+
+The same folder also carries the server for when you want more: double-click `局域网模式（手机也能读）.command` (macOS) or run `局域网模式.sh` / `.bat`, and phones and tablets on the same Wi-Fi can read it too, with reading position shared between devices. That mode needs Python 3.10 and nothing else. The packager checks free space before it starts and verifies afterwards that every book's data and audio arrived and that no symlink survived.
 
 ## Backup & restore
 
@@ -207,7 +209,7 @@ Apple 芯片的 Mac 转写快 14 倍：本机 `pip install -e '.[mlx,formats]'` 
 
 阅读器是**按 ESL 学习设计**的：正在朗读的**那一句**会在段落里高亮，点任意一句从那句开始播放；练习模式可以整句或整段复读 1–5 遍或一直重复，每句后可停 1–3 秒或与该句等长——听一句、停、自己说一遍，就是跟读循环，语速可以降到 0.5 倍。**双击任意单词**能看到它在全书出现过几次、每一处的原句，点一句就跳过去听；生词本可导出成 TSV 喂给 Anki。**双击任意单词**给出音标、中英释义、考纲标签（中考/高考/四六级/考研/托福/雅思/GRE）和词频，下面接着是这个词在**本书**里的每一处原句，点一句就跳过去听——这是词典给不了的部分。词典按你的书库生成：ECDICT（MIT）原始 66 MB，`scripts/build-dict.py` 只留你的书真正用到的词（十三本书 2.9 万个，gz 后 1 MB），阅读器在你第一次查词时才去取。长按依然能调系统词典，本页从不劫持文本选择。
 
-**拷到另一台电脑**：`scripts/package.sh` 生成一个文件夹，里面有程序、书库、音频、词典和三个平台的启动脚本。对方只需要 Python 3.10，**不装任何依赖、不联网**——服务端是纯标准库。macOS 双击「开始阅读.command」即可。
+**拷到另一台电脑**：`scripts/package.py --zip` 打出一个 zip，**解压后双击 index.html 就能读**——不装东西、不起服务、不联网。想让手机也能看、并在设备间同步进度，同一个文件夹里还有「局域网模式」启动脚本（只需要 Python 3.10）。
 
 点任意段落即从该处播放，当前段高亮并跟随滚动；选中一句话可以**收藏**或从这句开始朗读；左栏是目录、全文搜索、收藏三个页签。四种主题（跟随系统 / 日间 / 夜间 / **墨水屏**），字号、行距、栏宽、段首缩进都能调。底栏有进度条、±15 秒、上下章、语速和**睡眠定时**。整页不加载任何外部字体和脚本，所以 Kindle 实验浏览器和文石 Boox 上一样能开。
 

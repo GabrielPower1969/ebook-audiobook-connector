@@ -71,6 +71,13 @@ header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1p
 .iconbtn:hover{background:var(--accent-soft);color:var(--ink)}
 #who{font-size:12.5px;color:var(--muted);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+#tip{display:none;align-items:center;gap:10px;margin:14px 0 -6px;padding:10px 14px;font-size:13px;
+     background:var(--accent-soft);color:var(--ink-2);border-radius:var(--radius);line-height:1.6}
+#tip.on{display:flex}
+#tip b{color:var(--ink)}
+#tip .x{margin-left:auto;flex:none;color:var(--muted);padding:2px 8px;border-radius:999px;font-size:15px}
+#tip .x:hover{background:var(--paper);color:var(--ink)}
+
 /* ---------------------------------------------------------------- hero */
 #hero{margin:26px 0 8px}
 .resume{display:flex;gap:20px;align-items:center;background:var(--raised);border:1px solid var(--line);
@@ -140,6 +147,7 @@ footer .fg{width:16px;height:16px;flex:none;opacity:.8}
 </div></header>
 
 <main class="wrap">
+  <div id="tip"></div>
   <div id="hero"></div>
   <div id="shelf"></div>
 </main>
@@ -176,15 +184,33 @@ function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
 function hms(s){ var h=Math.floor((s||0)/3600), m=Math.round((s||0)%3600/60);
   return h ? (h+' 小时'+(m?' '+m+' 分':'')) : (m+' 分'); }
 
+/* Served, the library is the web root and the JSON is fetched. Opened straight off a disk,
+   fetch() is blocked on file:// but a <script> tag is not, and the library sits one folder down. */
+var FILE = location.protocol === 'file:';
+var ROOT = FILE ? 'library/' : '';
+function loadData(path, name){
+  if(!FILE) return fetch(ROOT+path+'.json').then(function(r){ return r.json(); });
+  return new Promise(function(res, rej){
+    var s=document.createElement('script'); s.src=ROOT+path+'.js';
+    s.onload=function(){ res(window[name]); }; s.onerror=function(){ rej(new Error(s.src)); };
+    document.head.appendChild(s);
+  });
+}
+function api(path, dflt){
+  if(FILE) return Promise.resolve(dflt);
+  return fetch(path).then(function(r){ return r.ok?r.json():dflt; }).catch(function(){ return dflt; });
+}
+
 var BOOKS=[], PROG={};
 Promise.all([
-  fetch('index.json').then(function(r){return r.json()}),
-  fetch('api/me').then(function(r){return r.ok?r.json():{auth:'local'}}).catch(function(){return{auth:'local'}}),
-  fetch('api/progress').then(function(r){return r.ok?r.json():{}}).catch(function(){return{}})
+  loadData('index', '__AC_INDEX'),
+  api('api/me', {auth:'local'}),
+  api('api/progress', {})
 ]).then(function(a){
   BOOKS=a[0]||[]; PROG=a[2]||{};
   if(a[1] && a[1].auth!=='local') $('#who').textContent=a[1].user;
   draw('');
+  showTip();
 });
 
 function posOf(b){
@@ -216,7 +242,7 @@ function draw(q){
     if(best){
       var pct=pctOf(best);
       hero.innerHTML='<a class="resume" href="reader.html?book='+encodeURIComponent(best.slug)+'">'+
-        (best.cover?'<img src="'+esc(best.slug+'/'+best.cover)+'" alt="">':'')+
+        (best.cover?'<img src="'+esc(ROOT+best.slug+'/'+best.cover)+'" alt="">':'')+
         '<span class="txt"><span class="k">继续阅读</span><h2></h2>'+
         '<p>读到 '+pct+'%'+(best.chapters?' · 共 '+best.chapters+' 章':'')+'</p></span>'+
         '<span class="go">接着听</span></a>';
@@ -270,7 +296,7 @@ function card(b){
   if(b.chapters) sub.push(b.chapters+' 章');
   return '<a class="card" href="reader.html?book='+encodeURIComponent(b.slug)+'">'+
     '<span class="cov">'+
-      (b.cover?'<img src="'+esc(b.slug+'/'+b.cover)+'" alt="" loading="lazy">'
+      (b.cover?'<img src="'+esc(ROOT+b.slug+'/'+b.cover)+'" alt="" loading="lazy">'
               :'<span class="fallback">'+esc(b.title)+'</span>')+
       (b.volume?'<span class="vol">'+b.volume+'</span>':'')+
       (pct?'<span class="bar"><i style="width:'+pct+'%"></i></span>':'')+
@@ -291,6 +317,18 @@ function shortTitle(b){
     if(rest.length>2) return rest.charAt(0).toUpperCase()+rest.slice(1);
   }
   return b.title;
+}
+
+/* Opened straight off a disk, everything works except the two things that need a server: reading
+   on another device, and a reading position shared between devices. Say so once, then be quiet. */
+function showTip(){
+  if(!FILE || lsGet('ac:tip',0)) return;
+  var t=$('#tip');
+  t.innerHTML='<span><b>本地模式</b> —— 一切正常。想在手机、平板上读，'+
+    '或让阅读进度在设备之间同步，就运行文件夹里的「局域网模式」。</span>'+
+    '<button class="x" title="知道了">✕</button>';
+  t.classList.add('on');
+  t.querySelector('.x').onclick=function(){ t.classList.remove('on'); lsSet('ac:tip',1); };
 }
 
 $('#q').addEventListener('input', function(){ draw(this.value); });
