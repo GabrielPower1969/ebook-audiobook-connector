@@ -134,6 +134,8 @@ def chapter_hints_from_names(names: list[str]) -> list[str]:
 _END = re.compile(r"[.!?:;…]['\"”’)\]]*$")
 _PAGE_NO = re.compile(r"^\s*(\d{1,4}|[ivxlcdm]{1,6})\s*$", re.I)
 _HDR = re.compile(r"[\s\d]+")
+_SOFT = re.compile("\u00ad\\s*")           # soft hyphen + the space a line break leaves after it
+_SPACE = re.compile(r"[\s\u00a0]+")         # layout mode pads with runs of spaces and NBSPs
 
 
 def _hdr_key(line: str) -> str:
@@ -205,7 +207,11 @@ def _parse_pdf(path: pathlib.Path) -> Book:
         nonlocal chapter
         if not buf:
             return
-        text = " ".join(buf).strip(); buf.clear()
+        text = " ".join(buf); buf.clear()
+        # Layout mode pads with runs of spaces to reproduce the page grid, and word processors
+        # leave soft hyphens (U+00AD) at line breaks — "establish\xad ments" would otherwise
+        # tokenize as two words and cost the paragraph its anchor.
+        text = _SPACE.sub(" ", _SOFT.sub("", text)).strip()
         if not text:
             return
         if tag == "p" and len(text) < 80 and not _END.search(text) and text.isupper():
