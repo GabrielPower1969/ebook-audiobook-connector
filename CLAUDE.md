@@ -41,11 +41,16 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
                        mark_chapters(): fuzzy, monotonic match of detected headings against the chapter titles taken from the audio file names, so the TOC lists real chapters only
   epub.py              .epub → [Para]; regex over spine HTML, no lxml. paras_from_html() is shared with formats.py
   transcribe.py        backends: mlx (Apple) / faster (anywhere); cache key = name|size|mtime
-  align.py             pure function align(paras, transcripts) → {files, paras:[{f,s,e,d}|None], stats}
+  align.py             pure function align(paras, transcripts) → {files, paras:[{f,s,e,d,sent}|None], stats}
+                       sentences()/tokens_pos() split a paragraph and map each sentence to a time;
+                       `sent` is [[charStart, charEnd, s, e], …] over the paragraph's PLAIN text
   server.py            static HTTP with Range support, pre-compressed .gz siblings + JSON API (/api/me, /api/progress[/<slug>], /api/marks[/<slug>]); per-user progress + saved passages in library/_progress/
   auth.py              identify() → email | "local" | denied. Two sources: Cloudflare Access JWT (RS256 via pow(), stdlib only) or a trusted proxy (AC_PROXY_SECRET + X-Flowgt-User, used by flowgt.co.nz/read/*)
   app/index.html       bookshelf: series grouping, continue-reading, search   (served straight from the package; library/ is data only)
-  app/reader.html      reader: TOC, full-text search, saved passages, four themes (auto/light/dark/e-ink), type controls, sleep timer, Media Session
+  app/reader.html      reader: sentence-level play/highlight, practice mode (repeat + shadowing
+                       pause), word concordance + vocabulary list, TOC, search, saved passages,
+                       four themes (auto/light/dark/e-ink), type controls, sleep timer, Media Session
+  app/flowgt*.svg      the FlowGT mark, light and reverse; served by the package, never fetched
 scripts/               import-book.py  one title      import-series.py  a multi-volume set
                        cache-status.py how far transcription got   build-ready.py  build what is ready
                        verify-text.py  cross-check the shown text against the audio
@@ -64,7 +69,16 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - **The server must honour `Range`.** `<audio>` seeking silently breaks without it (root cause of the first bug we hit).
 - A paragraph is "aligned" only if it contains an exact anchor; headings may be within 3 tokens. Loosening this re-introduces false hits on the copyright page and index.
 - `align.align()` stays pure and framework-free so it can be unit-tested and reused.
-- Reader must run from a single HTML file with no build step and no external requests. It has to open on a Kindle experimental browser and a Boox e-ink tablet: system fonts only (a webfont fetch is a blank page), no CSS `:has()`, and the e-ink theme is pure black/white with every transition disabled.
+- Reader must run from a single HTML file with no build step and no external requests. Its own
+  assets (the FlowGT mark, the favicon) are served from the package alongside it, same origin.
+- **No dictionary ships with the reader.** A bundled EN→ZH dataset is a megabyte and a licence
+  question, and every phone and e-reader already has one behind a long press — so text selection
+  must keep working natively. What the reader offers instead is the concordance: how often a word
+  occurs in *this book* and every sentence it occurs in.
+- **Sentence spans are wrapped lazily, driven by scroll position** — not by an IntersectionObserver
+  rooted on the scroller, which never fires while the tab is hidden or the pane is collapsed and
+  leaves the sentence layer silently missing. Wrapping all 93k sentences up front would add tens of
+  thousands of elements to a big volume. It has to open on a Kindle experimental browser and a Boox e-ink tablet: system fonts only (a webfont fetch is a blank page), no CSS `:has()`, and the e-ink theme is pure black/white with every transition disabled.
 - Chapter titles come from the audio file names, not from the book's own headings: one audio file is one chapter, so the TOC and the player agree. `mark_chapters()` commits all-or-nothing (a <60% match rate means those were never chapter titles) and guards containment matches by length ratio (without it "HOGWARTS" swallows "The Battle of Hogwarts" and every later chapter shifts by one).
 - **Auth is never home-grown.** Identity is either a verified Cloudflare Access JWT email, or `X-Flowgt-User` from a proxy that proved itself with `AC_PROXY_SECRET` (constant-time compare; when the secret is set, every request without it is refused, LAN included). Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
 - `library/_progress/` is per-user data: back it up, never serve it, never commit it.
@@ -98,6 +112,8 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 | start-with-why | 80 % | 0.975 | 94.7 % |
 | thank-you-economy | 75 % | 0.995 | 97.4 % |
 | zero-to-one | 50 % | 1.000 | 98.4 % |
+
+Sentence spans: 93,438 across the thirteen books. data.json totals 14 MB, 4 MB gzipped.
 
 zero-to-one's 50 % is its EPUB, not the aligner: the file puts `h1` on its own contents page, so
 `chapterOf()` maps most of the book to the wrong chapter and half the paragraphs never anchor.
