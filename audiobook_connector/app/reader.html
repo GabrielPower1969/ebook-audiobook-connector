@@ -380,6 +380,17 @@ function render(){
   if(secs) bits.push(hms(secs));
   $('#bmeta').textContent=bits.join(' · ');
 
+  // Which heading level is the chapter level? h1 when the book really has chapters — that is what
+  // mark_chapters() produces from the audio file names. A book split into "Part 01…Part 08" gets no
+  // h1 at all, and then its h2 headings are the only structure there is; a single-entry table of
+  // contents for a 400-page book is worse than a noisy one.
+  var TOP='h1', lv, c;
+  for(lv=0;lv<3;lv++){
+    var tag=['h1','h2','h3'][lv], k=0;
+    for(i=0;i<D.paras.length;i++) if(D.paras[i].tag===tag) k++;
+    if(k>=3){ TOP=tag; break; }
+  }
+
   var frag=document.createDocumentFragment(), i, p, el;
   for(i=0;i<D.paras.length;i++){
     p=D.paras[i];
@@ -388,7 +399,7 @@ function render(){
     if(p.t){ el.className='al'; el.dataset.t=fmt(p.t.s); }
     else el.className='na';
     frag.appendChild(el);
-    if(p.tag==='h1') CH.push({id:p.id, title:txt(p.html), t:p.t});
+    if(p.tag===TOP) CH.push({id:p.id, title:txt(p.html), t:p.t});
   }
   book.appendChild(frag);
   if(!CH.length) CH.push({id:0,title:D.title,t:D.paras[0]&&D.paras[0].t});
