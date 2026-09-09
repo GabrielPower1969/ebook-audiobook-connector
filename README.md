@@ -81,6 +81,15 @@ AC_PROXY_SECRET=<long random string>       # in .env; the reader now refuses eve
 
 Identity comes from the header, positions are stored per email, and the tunnel hostname is useless to anyone but the proxy. The reference implementation is `functions/read/[[path]].js` in the flowgt-website repo (Cloudflare Pages Function, ~60 lines). Both modes cannot be active at once; `AC_PROXY_SECRET` wins.
 
+## Copy it to another machine
+
+```bash
+scripts/package.sh                          # → dist/audiobook-connector-portable/
+scripts/package.sh /Volumes/Drive --only hp1-philosophers-stone,zero-to-one
+```
+
+The folder holds the package, the library, the audio, the dictionary, and a launcher for each platform — double-click `开始阅读.command` on macOS, `run.sh` on Linux, `run.bat` on Windows. **The other machine needs Python 3.10 and nothing else**: serving is pure standard library, so there is no install step and no network access required. The script sizes the audio before copying and stops rather than filling a disk, then checks that every audio symlink resolves and every `data.json` arrived.
+
 ## Backup & restore
 
 
@@ -136,7 +145,15 @@ Chapter list, full-text search and saved passages share the left rail. Select an
 
 **Built for practice.** The sentence being read is highlighted inside the paragraph being read, and practice mode repeats a sentence or a paragraph 1–5 times or forever, with an optional pause after each sentence — 1–3 seconds, or as long as the sentence itself took. That is the shadowing loop: hear it, pause, say it back. Speed goes down to 0.5x.
 
-No dictionary is bundled: that would be a megabyte of data and a licensing question, and every phone and e-reader already has one behind a long press, which still works because the reader never hijacks text selection. What a dictionary cannot give you is *this book* — double-click a word and you get how often it occurs here and every sentence it occurs in, each one playable. Words you keep go to a vocabulary list that exports as TSV for Anki.
+**Double-click any word** for its pronunciation, Chinese and English glosses, the exam lists it belongs to (中考/高考/CET-4/CET-6/考研/TOEFL/IELTS/GRE) and its frequency rank — then, underneath, every sentence in *this book* that uses it, each one playable. That last part is what no dictionary can give you, and it is what makes a word stick. Words you keep go to a vocabulary list that exports as TSV for Anki, gloss and example sentence included.
+
+The dictionary is built for your library, not shipped whole. [ECDICT](https://github.com/skywind3000/ECDICT) (MIT) is 66 MB of CSV; `scripts/build-dict.py` keeps only the words your books actually use — 29 000 of them across thirteen books, 1 MB gzipped — and the reader fetches it on the first lookup, never before. Long-press still reaches your device's own dictionary: the reader does not hijack text selection.
+
+```bash
+mkdir -p cache/dict && curl -L -o cache/dict/ecdict.csv \
+  https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv
+scripts/build-dict.py                       # → library/_dict/dict.json
+```
 
 **Four themes**: follow-system, day, night, and **e-ink** — pure black on white, every transition and shadow removed, larger type. The page loads no webfont and no script from anywhere, so it opens on a Kindle experimental browser or a Boox tablet as it does on a laptop. Type size, line height, column width and paragraph indent are adjustable and remembered.
 
@@ -188,7 +205,9 @@ docker compose up -d                         # 局域网里任何设备打开 ht
 
 Apple 芯片的 Mac 转写快 14 倍：本机 `pip install -e '.[mlx,formats]'` 后 `build`，再 `scripts/backup.sh` 打包，把 tgz 拷到服务器解开，`docker compose up -d` 即可，不会重新转写。同一个 tgz 就是灾备。
 
-阅读器是**按 ESL 学习设计**的：正在朗读的**那一句**会在段落里高亮，点任意一句从那句开始播放；练习模式可以整句或整段复读 1–5 遍或一直重复，每句后可停 1–3 秒或与该句等长——听一句、停、自己说一遍，就是跟读循环，语速可以降到 0.5 倍。**双击任意单词**能看到它在全书出现过几次、每一处的原句，点一句就跳过去听；生词本可导出成 TSV 喂给 Anki。不内置词典（那是一兆数据加授权问题，而且手机和阅读器长按都自带词典，本页从不劫持文本选择）。
+阅读器是**按 ESL 学习设计**的：正在朗读的**那一句**会在段落里高亮，点任意一句从那句开始播放；练习模式可以整句或整段复读 1–5 遍或一直重复，每句后可停 1–3 秒或与该句等长——听一句、停、自己说一遍，就是跟读循环，语速可以降到 0.5 倍。**双击任意单词**能看到它在全书出现过几次、每一处的原句，点一句就跳过去听；生词本可导出成 TSV 喂给 Anki。**双击任意单词**给出音标、中英释义、考纲标签（中考/高考/四六级/考研/托福/雅思/GRE）和词频，下面接着是这个词在**本书**里的每一处原句，点一句就跳过去听——这是词典给不了的部分。词典按你的书库生成：ECDICT（MIT）原始 66 MB，`scripts/build-dict.py` 只留你的书真正用到的词（十三本书 2.9 万个，gz 后 1 MB），阅读器在你第一次查词时才去取。长按依然能调系统词典，本页从不劫持文本选择。
+
+**拷到另一台电脑**：`scripts/package.sh` 生成一个文件夹，里面有程序、书库、音频、词典和三个平台的启动脚本。对方只需要 Python 3.10，**不装任何依赖、不联网**——服务端是纯标准库。macOS 双击「开始阅读.command」即可。
 
 点任意段落即从该处播放，当前段高亮并跟随滚动；选中一句话可以**收藏**或从这句开始朗读；左栏是目录、全文搜索、收藏三个页签。四种主题（跟随系统 / 日间 / 夜间 / **墨水屏**），字号、行距、栏宽、段首缩进都能调。底栏有进度条、±15 秒、上下章、语速和**睡眠定时**。整页不加载任何外部字体和脚本，所以 Kindle 实验浏览器和文石 Boox 上一样能开。
 
