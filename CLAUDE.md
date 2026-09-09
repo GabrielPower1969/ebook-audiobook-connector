@@ -54,12 +54,17 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
 scripts/               import-book.py  one title      import-series.py  a multi-volume set
                        cache-status.py how far transcription got   build-ready.py  build what is ready
                        verify-text.py  cross-check the shown text against the audio
-                       backup.sh       library + transcripts, verified, ~16 MB
+                       build-dict.py   library-scoped dictionary from ECDICT → library/_dict/
+                       package.sh      a folder another machine can run with no install
+                       backup.sh       library + transcripts + dictionary, verified
 books/<name>/          INPUT: one .epub + audio files (+cover.jpg, +book.json). git-ignored.
                        book.json: title, author, series, volume, narrator, language, chapters[]
 library/<slug>/        OUTPUT: data.json, cover, audio/ (relative symlinks into books/). git-ignored.
 cache/transcripts/     whisper output per audio file; the expensive artifact. git-ignored, back it up.
 cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downloadable.
+cache/dict/ecdict.csv  the dictionary source, 66 MB, fetched once. git-ignored, re-downloadable.
+library/_dict/         dict.json(+.gz): only the words this library uses. Fetched by the reader
+                       lazily, on the first lookup.
 ```
 
 ## Invariants — do not break
@@ -71,10 +76,13 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - `align.align()` stays pure and framework-free so it can be unit-tested and reused.
 - Reader must run from a single HTML file with no build step and no external requests. Its own
   assets (the FlowGT mark, the favicon) are served from the package alongside it, same origin.
-- **No dictionary ships with the reader.** A bundled EN→ZH dataset is a megabyte and a licence
-  question, and every phone and e-reader already has one behind a long press — so text selection
-  must keep working natively. What the reader offers instead is the concordance: how often a word
-  occurs in *this book* and every sentence it occurs in.
+- **The dictionary is built for this library, never shipped whole.** ECDICT (MIT) is 66 MB of CSV;
+  `build-dict.py` keeps only the words the built books actually use — 29 k of them here, 2.9 MB /
+  1.0 MB gzipped — resolving inflections back to their base form through ECDICT's own `exchange`
+  column. The reader fetches it on the first word lookup and never before, so a reader who only
+  listens never pays for it. Text selection is still never hijacked: long-press must keep reaching
+  the device's own dictionary, and the concordance (how often a word occurs in *this book*, and
+  every sentence it occurs in) is the part no dictionary can give you.
 - **Sentence spans are wrapped lazily, driven by scroll position** — not by an IntersectionObserver
   rooted on the scroller, which never fires while the tab is hidden or the pane is collapsed and
   leaves the sentence layer silently missing. Wrapping all 93k sentences up front would add tens of
