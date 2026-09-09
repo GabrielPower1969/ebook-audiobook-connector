@@ -85,6 +85,28 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 - CPU transcription (Docker) runs at about real time: measured 60 s of audio → 65 s, large-v3-turbo int8, 4 threads, Docker on an M-series Mac. mlx on the same Mac: ~14× real time. Recommend `--model small` on CPU or building once on Apple Silicon.
 - No auth on the server — it is meant for a trusted LAN only.
 
+## Status 2026-09-10 — library
+
+13 books, 62 h of them outside Harry Potter. Alignment and the independent text check:
+
+| slug | aligned | text↔audio median | ≥0.90 |
+|---|---|---|---|
+| hp1..hp7 | 98-99 % | 1.000 | 91-96 % |
+| e-myth-revisited | 94 % | 1.000 | 96.9 % |
+| franklin-autobiography | 87 % | 0.953 | 89.0 % |
+| on-writing | 83 % | 0.988 | 97.4 % |
+| start-with-why | 80 % | 0.975 | 94.7 % |
+| thank-you-economy | 75 % | 0.995 | 97.4 % |
+| zero-to-one | 50 % | 1.000 | 98.4 % |
+
+zero-to-one's 50 % is its EPUB, not the aligner: the file puts `h1` on its own contents page, so
+`chapterOf()` maps most of the book to the wrong chapter and half the paragraphs never anchor.
+
+`just-for-fun` was built and then dropped: its PDF is a scan whose OCR is damaged — 29 % of
+paragraphs have words run together ("theUnited", "LinusTort/aids") against 2 % for a clean EPUB,
+and the reader shows the book's own text, so that damage would be what you read. Its transcripts
+are still cached, so a clean copy of the book is cheap to build.
+
 ## Text verification
 
 `scripts/verify-text.py` turns the transcript around and uses it as an independent witness: for
