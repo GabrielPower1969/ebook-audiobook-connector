@@ -262,7 +262,9 @@ function draw(q){
 
 function card(b){
   var pct=pctOf(b);
-  var al=Math.round(100*b.aligned/Math.max(1,b.paragraphs));
+  // by words, not paragraphs: an index is hundreds of two-word paragraphs nobody narrates
+  var al=b.words ? Math.round(100*b.aligned_words/b.words)
+                 : Math.round(100*b.aligned/Math.max(1,b.paragraphs));
   var sub=[];
   if(b.seconds) sub.push(hms(b.seconds));
   if(b.chapters) sub.push(b.chapters+' 章');

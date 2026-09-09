@@ -151,7 +151,12 @@ def align(paras: list[dict], transcripts: list[dict]) -> dict:
         if len(span) > 1:                    # one sentence per paragraph adds nothing over `s`/`e`
             rec["sent"] = span
         out.append(rec)
+    # Word coverage, not paragraph count, is the honest headline. A book's index is hundreds of
+    # two-word paragraphs that nobody narrates: counting them as failures put Zero to One at "50 %"
+    # when 96 % of its words are aligned.
+    words = [len(tokens(p["text"])) for p in paras]
     stats = {"book_tokens": len(bt), "audio_tokens": len(tt), "anchors": len(A),
              "aligned": sum(1 for x in out if x), "exact": sum(1 for x in out if x and x["d"] == 0),
-             "sentences": sum(len(x.get("sent", ())) for x in out if x), "paragraphs": len(out)}
+             "sentences": sum(len(x.get("sent", ())) for x in out if x), "paragraphs": len(out),
+             "words": sum(words), "aligned_words": sum(w for w, x in zip(words, out) if x)}
     return {"files": [t["file"] for t in transcripts], "paras": out, "stats": stats}

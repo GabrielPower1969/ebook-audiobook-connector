@@ -102,9 +102,12 @@ def cmd_build(a):
     al = aligner.align([{"id": p.id, "tag": p.tag, "text": p.text} for p in book.paras], trs)
     st = al["stats"]
     pct = 100 * st["aligned"] / max(1, st["paragraphs"])
+    wpct = 100 * st.get("aligned_words", 0) / max(1, st.get("words", 0))
     print(f"aligned: {st['aligned']}/{st['paragraphs']} paragraphs ({pct:.0f}%, {st['exact']} exact)"
-          + (f", {st['sentences']} sentences" if st.get("sentences") else ""))
-    if pct < 20:
+          + (f", {st['sentences']} sentences" if st.get("sentences") else "")
+          + f"\n         {st.get('aligned_words', 0)}/{st.get('words', 0)} words ({wpct:.0f}%)"
+            "  ← the honest number: an index is hundreds of paragraphs nobody narrates")
+    if wpct < 20:
         print("  ⚠ low alignment — check that the epub and the audio are the same edition,"
               "\n    and that --language matches the book if auto-detection went wrong.")
 
@@ -161,7 +164,8 @@ def _write_index():
                       "series": x.get("series", ""), "volume": x.get("volume"), "narrator": x.get("narrator", ""),
                       "files": len(x["files"]), "seconds": round(sum(x.get("durations", []))),
                       "chapters": _chapter_count(x["paras"]),
-                      "aligned": x["stats"]["aligned"], "paragraphs": x["stats"]["paragraphs"]})
+                      "aligned": x["stats"]["aligned"], "paragraphs": x["stats"]["paragraphs"],
+                      "words": x["stats"].get("words", 0), "aligned_words": x["stats"].get("aligned_words", 0)})
     books.sort(key=lambda b: (b["series"] or "~", b["volume"] or 0, b["title"]))
     json.dump(books, open(LIB / "index.json", "w"), ensure_ascii=False)
     for stale in ("index.html", "reader.html"):          # older versions copied these here
