@@ -398,6 +398,14 @@ function txt(h){ var d=document.createElement('div'); d.innerHTML=h; return d.te
    every one of them would be a lie. Measure to the next chapter's start instead. */
 function chapterSpans(){
   var dur=D.durations||[], i, c, nx;
+  // A chapter heading is one short line and does not always anchor. Fall back to the first
+  // paragraph of the chapter that did, so every chapter stays playable and timed.
+  for(i=0;i<CH.length;i++){
+    c=CH[i];
+    if(c.t) continue;
+    var end=(i+1<CH.length)?CH[i+1].id:D.paras.length;
+    for(var k=c.id+1;k<end;k++) if(D.paras[k].t){ c.t=D.paras[k].t; c.playId=k; break; }
+  }
   for(i=0;i<CH.length;i++){
     c=CH[i]; if(!c.t){ c.len=0; continue; }
     nx=null;
@@ -520,11 +528,13 @@ $('#back15').onclick=function(){ au.currentTime=Math.max(0,au.currentTime-15); }
 $('#fwd15').onclick =function(){ au.currentTime=Math.min(au.duration||1e9,au.currentTime+15); };
 $('#prevch').onclick=function(){ hopChapter(-1); };
 $('#nextch').onclick=function(){ hopChapter(1); };
+function chapterPlayId(c){ return (c && typeof c.playId==='number') ? c.playId : (c?c.id:0); }
 function hopChapter(k){
   var i=chapterOf(curId<0?0:curId);
-  if(k<0 && au.currentTime>6 && CH[i] && CH[i].t){ playPara(CH[i].id,!au.paused); return; }
+  // "previous" first rewinds to the start of the chapter you are in, as every audio player does
+  if(k<0 && au.currentTime>6 && CH[i] && CH[i].t){ playPara(chapterPlayId(CH[i]), !au.paused); return; }
   var j=i+k; if(j<0||j>=CH.length) return;
-  playPara(CH[j].id, !au.paused); jumpTo(CH[j].id);
+  playPara(chapterPlayId(CH[j]), !au.paused); jumpTo(CH[j].id);
 }
 $('#rate').onchange=function(){ au.playbackRate=+this.value; P.rate=+this.value; savePrefs(); };
 if(P.rate){ $('#rate').value=String(P.rate); au.playbackRate=P.rate; }

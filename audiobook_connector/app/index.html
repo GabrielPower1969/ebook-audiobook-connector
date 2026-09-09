@@ -264,12 +264,15 @@ function card(b){
       (al<25?'<span class="warn">仅 '+al+'% 段落对齐</span>':'')+
     '</span></a>';
 }
-/* In a series the shared prefix is on the section header already; repeating it under every
-   cover makes seven identical-looking labels. */
+/* In a series the shared prefix is on the section header already; repeating it under every cover
+   makes seven identical-looking labels. "Harry Potter and the Philosopher's Stone" has to come out
+   as "The Philosopher's Stone", not "and the Philosopher's Stone". */
 function shortTitle(b){
   if(b.series && b.title.indexOf(b.series)===0){
-    var rest=b.title.slice(b.series.length).replace(/^[\s:·、,-]+/,'');
-    if(rest) return rest;
+    var rest=b.title.slice(b.series.length)
+      .replace(/^[\s:·、,\-–—]+/,'')
+      .replace(/^(and|und|et|y|&)\s+/i,'');
+    if(rest.length>2) return rest.charAt(0).toUpperCase()+rest.slice(1);
   }
   return b.title;
 }
