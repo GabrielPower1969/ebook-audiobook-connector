@@ -66,12 +66,11 @@ cache/models/          downloaded whisper weights (HF_HOME in Docker). Re-downlo
 
 ## Status 2026-09-09 — Harry Potter series
 
-`books/hp1..hp7` (Stephen Fry, 125 h of audio, 199 chapters) built from the seven PDFs plus one
-mp3 per chapter. Chapter detection: **199/199**, no header text left in the prose. Volume 1
-aligns **3005/3075 paragraphs (98 %, 2643 exact)** — an American-edition PDF against a British
-narration, so the n-gram anchors survive a fair number of word-level differences.
-
-Transcription is ~12x real time with mlx on Apple Silicon, so the set takes ~10.5 h:
+`books/hp1..hp7` (Stephen Fry, 124 h of audio, 199 chapters) built from the seven PDFs plus one
+mp3 per chapter. Chapter detection **199/199**, no header text left in the prose, and
+**37587/38193 paragraphs aligned (98 %)** across the series — an American-edition PDF against a
+British narration, so the n-gram anchors survive a fair number of word-level differences.
+Transcription took **9.0 h** with mlx on Apple Silicon (~14x real time); cache 47 MB, library 13 MB.
 
 ```bash
 scripts/import-series.py <audio-root> <book-root> --series "…" --prefix hp --narrator "…"
