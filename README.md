@@ -101,32 +101,47 @@ Restore on any Linux or Mac: clone, `tar xzf` inside the clone, `docker compose 
 | serve | `server.py` | static HTTP with `Range` support (needed for `<audio>` seeking; `python -m http.server` lacks it) |
 | read | `app/` | bookshelf + reader, single HTML files, no build step, no external requests |
 
+Chapter titles come from the audio file names — `Chapter 03 - The Knight Bus.mp3` — matched fuzzily and in order against the headings found in the book. One audio file is one chapter, so the table of contents and the player never disagree, and a heading heuristic that also picks up letter signatures and newspaper headlines cannot pollute the chapter list. If fewer than 60 % of the titles match, none are used.
+
 A paragraph is clickable only if it contains an exactly-anchored word; front matter, index and skipped captions show greyed out.
 
 Measured on *Zero to One* (4 h 45 min): 519 of 528 body paragraphs anchored exactly, the 9 misses all figure captions. PDF input on a synthetic 17-page fixture: 101 of 106 paragraphs recovered exactly.
 
 ## Reader
 
+Chapter list, full-text search and saved passages share the left rail. Select any sentence and a bubble offers **收藏** (save it) or **朗读此处** (play from there); saved passages live in the browser and, for a signed-in reader, on the server too.
+
 | key / control | action |
 |---|---|
 | tap a paragraph | play from there |
+| select text | save the passage, or play from it |
 | `space` | play / pause |
-| `←` `→` | −10 s / +10 s |
+| `←` `→` | −15 s / +15 s |
 | `j` `k` | next / previous paragraph |
-| ☰ (phones) | chapter list |
+| `m` | save the current paragraph |
+| `/` | search the whole book |
+| `t` | chapter list |
 
-Speed and a *follow* (auto-scroll) toggle sit in the bottom bar. Progress is remembered per device.
+**Four themes**: follow-system, day, night, and **e-ink** — pure black on white, every transition and shadow removed, larger type. The page loads no webfont and no script from anywhere, so it opens on a Kindle experimental browser or a Boox tablet as it does on a laptop. Type size, line height, column width and paragraph indent are adjustable and remembered.
+
+The bottom bar carries a scrubber, ±15 s, chapter skip, speed, and a **sleep timer** (15/30/60 min, or "end of this chapter"). On a phone the lock screen and headphone buttons control playback through the Media Session API. Reading position is remembered per device, and per account when signed in.
 
 ## CLI
 
 ```
-audiobook-connector build <dir|name> [--title T] [--slug S] [--language en] [--model large-v3-turbo]
-                                     [--backend auto|mlx|faster] [--audio symlink|hardlink|copy]
+audiobook-connector build <dir|name> [--title T] [--author A] [--slug S] [--language en]
+                                     [--model large-v3-turbo] [--backend auto|mlx|faster]
+                                     [--audio symlink|hardlink|copy]
+audiobook-connector transcribe <dir|name>...        # fill the cache only, nothing else
 audiobook-connector serve [--port 8765] [--host 0.0.0.0]
 audiobook-connector list
 ```
 
 Environment overrides: `AC_BOOKS` `AC_LIBRARY` `AC_CACHE` `AC_PORT` `AC_HOST` `AC_BACKEND`, plus `AC_ACCESS_TEAM` `AC_ACCESS_AUD` `AC_REQUIRE_AUTH` for Cloudflare Access or `AC_PROXY_SECRET` for a trusted proxy (this is how the Docker image is wired).
+
+A book directory may carry a `book.json` — `title`, `author`, `series`, `volume`, `narrator`, `language`, `chapters` (titles, in order). `series` and `volume` group a set on the shelf; `chapters` overrides the titles otherwise taken from the audio file names.
+
+`transcribe` exists because a long series is measured in hours: transcribe it in the background once, then `build` finishes in seconds off the cache. A seven-volume, 125-hour set runs about 10.5 h at ~12x real time with `mlx-whisper` on Apple Silicon.
 
 Optional extras: `[cpu]` faster-whisper · `[mlx]` mlx-whisper · `[formats]` pypdf + mobi. The core is pure standard library.
 
@@ -150,7 +165,11 @@ docker compose up -d                         # 局域网里任何设备打开 ht
 
 Apple 芯片的 Mac 转写快 14 倍：本机 `pip install -e '.[mlx,formats]'` 后 `build`，再 `scripts/backup.sh` 打包，把 tgz 拷到服务器解开，`docker compose up -d` 即可，不会重新转写。同一个 tgz 就是灾备。
 
-阅读器里点任意段落即从该处播放，当前段高亮并跟随滚动；手机上 ☰ 打开目录。
+阅读器：点任意段落即从该处播放，当前段高亮并跟随滚动；选中一句话可以**收藏**或从这句开始朗读；左栏是目录、全文搜索、收藏三个页签。四种主题（跟随系统 / 日间 / 夜间 / **墨水屏**），字号、行距、栏宽、段首缩进都能调。底栏有进度条、±15 秒、上下章、语速和**睡眠定时**。整页不加载任何外部字体和脚本，所以 Kindle 实验浏览器和文石 Boox 上一样能开。
+
+章节名取自音频文件名（`Chapter 03 - The Knight Bus.mp3`），按顺序模糊匹配到书里认出的标题上——一个音频文件就是一章，目录和播放器因此永远一致。
+
+一整套书先跑 `transcribe` 把转写缓存填满（Apple 芯片约 12 倍速，125 小时音频约 10.5 小时），再 `build` 就只要几秒。
 
 要开放到公网并用 Google 登录：域名托管在 Cloudflare，建 Tunnel + Access 应用（上面英文一节的 4 步），`.env` 填三个值，`docker compose --profile public up -d`。登录用户的阅读位置存在服务器上，换设备继续读。
 

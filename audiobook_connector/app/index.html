@@ -1,37 +1,283 @@
-<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>书架</title>
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>书房</title>
 <style>
-:root{--bg:#faf7f2;--fg:#2b2620;--muted:#8a8078;--card:#fff;--line:#e3dcd2;--acc:#c2511f}
-@media(prefers-color-scheme:dark){:root{--bg:#1b1917;--fg:#e8e2d9;--muted:#8f877d;--card:#242120;--line:#33302b;--acc:#f08a55}}
-body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,system-ui,sans-serif;padding:40px 6vw}
-h1{font-weight:600;letter-spacing:.02em}
-#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:24px}
-a.book{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;transition:transform .15s}
-a.book:hover{transform:translateY(-3px)}
-.cov{aspect-ratio:2/3;background:var(--line);display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;font-weight:600}
-.cov img{width:100%;height:100%;object-fit:cover}
-.meta{padding:10px 12px}.meta b{display:block;font-size:15px}.meta span{color:var(--muted);font-size:13px}
-.bar{height:4px;background:var(--line)}.bar i{display:block;height:100%;background:var(--acc)}
-p.empty{color:var(--muted)}
-#user{font-size:13px;font-weight:400;color:var(--muted);margin-left:8px}
-</style></head><body>
-<h1>书架 <span id="user"></span></h1><div id="grid"></div>
-<script>
-Promise.all([fetch('index.json').then(r=>r.json()),
-  fetch('api/me').then(r=>r.ok?r.json():{auth:'local'}).catch(()=>({auth:'local'})),
-  fetch('api/progress').then(r=>r.ok?r.json():{}).catch(()=>({}))]).then(([bs,me,prog])=>{
-  const g=document.getElementById('grid');
-  if(me.auth==='cloudflare')document.getElementById('user').textContent=me.user;
-  if(!bs.length){g.innerHTML='<p class="empty">还没有书。运行 <code>python -m audiobook_connector build &lt;目录&gt;</code></p>';return;}
-  for(const b of bs){
-    const a=document.createElement('a');a.className='book';a.href='reader.html?book='+encodeURIComponent(b.slug);
-    const pct=Math.round(100*b.aligned/Math.max(1,b.paragraphs));
-    let pos=prog[b.slug]||null;if(!pos)try{pos=JSON.parse(localStorage.getItem('pos:'+b.slug))}catch(e){}
-    a.innerHTML=`<div class="cov">${b.cover?`<img src="${b.slug}/${b.cover}" alt="">`:''}</div>
-      <div class="meta"><b></b><span></span><br><span>${b.files} 段音频 · ${pct}% 段落已对齐${pos?' · 继续阅读':''}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
-    a.querySelector('b').textContent=b.title;a.querySelector('span').textContent=b.author||'';
-    if(!b.cover)a.querySelector('.cov').textContent=b.title;
-    g.appendChild(a);
+:root{
+  --serif:"Bookerly","Literata","Iowan Old Style","Source Serif 4","Palatino Linotype",Palatino,Georgia,"Songti SC","Noto Serif CJK SC","Noto Serif",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Noto Sans CJK SC","Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+
+  --paper:#FBF9F5; --raised:#FFFFFF; --ink:#16211C; --ink-2:#46554E; --muted:#78867F;
+  --line:#E5E2D9; --line-2:#EFEDE6;
+  --accent:#00694B; --accent-ink:#FFFFFF; --accent-soft:#E8F3EE; --amber:#B07A00;
+  --shadow:0 1px 2px rgba(20,32,26,.05),0 10px 28px rgba(20,32,26,.09);
+  --shadow-lg:0 2px 6px rgba(20,32,26,.07),0 22px 54px rgba(20,32,26,.16);
+  --radius:14px; --speed:.18s;
+}
+:root[data-theme="dark"]{
+  --paper:#0E1411; --raised:#151D19; --ink:#E5ECE8; --ink-2:#B0BCB6; --muted:#7F8D87;
+  --line:#22302A; --line-2:#1A241F;
+  --accent:#5BC79E; --accent-ink:#06120D; --accent-soft:#16241E; --amber:#D4A24C;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.42);
+  --shadow-lg:0 2px 8px rgba(0,0,0,.5),0 22px 54px rgba(0,0,0,.55);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-theme="eink"]){
+    --paper:#0E1411; --raised:#151D19; --ink:#E5ECE8; --ink-2:#B0BCB6; --muted:#7F8D87;
+    --line:#22302A; --line-2:#1A241F;
+    --accent:#5BC79E; --accent-ink:#06120D; --accent-soft:#16241E; --amber:#D4A24C;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px rgba(0,0,0,.42);
+    --shadow-lg:0 2px 8px rgba(0,0,0,.5),0 22px 54px rgba(0,0,0,.55);
   }
+}
+:root[data-theme="eink"]{
+  --paper:#FFFFFF; --raised:#FFFFFF; --ink:#000; --ink-2:#000; --muted:#444;
+  --line:#000; --line-2:#BBB; --accent:#000; --accent-ink:#FFF; --accent-soft:#EDEDED; --amber:#000;
+  --shadow:none; --shadow-lg:none; --radius:0px; --speed:0s;
+}
+:root[data-theme="eink"] *{transition:none!important;animation:none!important}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 var(--sans);
+     -webkit-text-size-adjust:100%}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+/* ---------------------------------------------------------------- header */
+header{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line-2)}
+.bar{display:flex;align-items:center;gap:14px;height:62px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:17px;letter-spacing:-.02em;flex:none}
+.logo .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none}
+.logo small{font-weight:500;font-size:13px;color:var(--muted);letter-spacing:0}
+.spacer{flex:1}
+#q{width:min(300px,42vw);padding:8px 14px;border:1px solid var(--line);border-radius:999px;
+   background:var(--raised);color:var(--ink);font-size:13.5px}
+#q::placeholder{color:var(--muted)}
+.iconbtn{width:36px;height:36px;border-radius:999px;display:inline-flex;align-items:center;
+         justify-content:center;font-size:16px;color:var(--ink-2)}
+.iconbtn:hover{background:var(--accent-soft);color:var(--ink)}
+#who{font-size:12.5px;color:var(--muted);max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------------------------------------------------------------- hero */
+#hero{margin:26px 0 8px}
+.resume{display:flex;gap:20px;align-items:center;background:var(--raised);border:1px solid var(--line);
+        border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);transition:box-shadow var(--speed),transform var(--speed)}
+.resume:hover{box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.resume img{width:62px;height:89px;object-fit:cover;border-radius:6px;flex:none;background:var(--line-2)}
+.resume .txt{min-width:0;flex:1}
+.resume .k{font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:700}
+.resume h2{margin:3px 0 3px;font:600 19px/1.3 var(--sans);letter-spacing:-.02em;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.resume p{margin:0;color:var(--muted);font-size:13.5px}
+.resume .go{flex:none;background:var(--accent);color:var(--accent-ink);padding:11px 22px;
+            border-radius:999px;font-weight:600;font-size:14px}
+
+/* ---------------------------------------------------------------- sections */
+section{margin:38px 0}
+.head{display:flex;align-items:baseline;gap:12px;margin:0 0 16px;padding-bottom:10px;
+      border-bottom:1px solid var(--line-2)}
+.head h2{margin:0;font:600 15px/1.3 var(--sans);letter-spacing:.03em}
+.head .sub{color:var(--muted);font-size:13px}
+.head .sub b{color:var(--ink-2);font-weight:600}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:26px 22px}
+.card{display:block;position:relative}
+.cov,.meta{display:block}
+.cov{position:relative;display:block;aspect-ratio:429/615;border-radius:8px;overflow:hidden;background:var(--accent-soft);
+     box-shadow:var(--shadow);transition:transform var(--speed),box-shadow var(--speed)}
+.card:hover .cov{transform:translateY(-5px);box-shadow:var(--shadow-lg)}
+.cov img{width:100%;height:100%;object-fit:cover;display:block}
+.cov .fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+     text-align:center;padding:14px;font:600 15px/1.4 var(--serif);color:var(--accent)}
+.cov .vol{position:absolute;left:0;top:12px;background:var(--accent);color:var(--accent-ink);
+     font:700 11px/1 var(--mono);padding:5px 8px 5px 7px;border-radius:0 4px 4px 0;letter-spacing:.04em}
+.cov .bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.22)}
+.cov .bar i{display:block;height:100%;background:var(--accent)}
+.meta{display:block;padding:11px 2px 0}
+.meta b{display:block;font:600 14px/1.4 var(--sans);letter-spacing:-.01em}
+.meta span{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+.meta .warn{color:var(--amber)}
+
+.empty{border:1px dashed var(--line);border-radius:var(--radius);padding:44px 24px;text-align:center;
+       color:var(--muted);line-height:1.9}
+.empty code{font:12.5px/1.6 var(--mono);background:var(--accent-soft);color:var(--accent);
+       padding:3px 8px;border-radius:5px}
+footer{color:var(--muted);font-size:12.5px;padding:30px 0 44px;border-top:1px solid var(--line-2);margin-top:40px}
+
+@media (max-width:640px){
+  .wrap{padding:0 16px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(124px,1fr));gap:20px 14px}
+  #q{width:38vw}
+  .resume{flex-wrap:wrap}
+  .resume .go{width:100%;text-align:center}
+}
+</style></head>
+<body>
+
+<header><div class="wrap bar">
+  <span class="logo"><span class="dot"></span>书房 <small>听读同行</small></span>
+  <span class="spacer"></span>
+  <input id="q" type="search" placeholder="搜书名、作者、朗读者" autocomplete="off">
+  <span id="who"></span>
+  <button class="iconbtn" id="themebtn" title="主题">◐</button>
+</div></header>
+
+<main class="wrap">
+  <div id="hero"></div>
+  <div id="shelf"></div>
+</main>
+
+<footer class="wrap">
+  <span id="stat"></span>
+</footer>
+
+<script>
+"use strict";
+var $=function(s){return document.querySelector(s)};
+var PREF='ac:prefs';
+function lsGet(k,d){ try{var v=localStorage.getItem(k); return v?JSON.parse(v):d}catch(e){return d} }
+function lsSet(k,v){ try{localStorage.setItem(k,JSON.stringify(v))}catch(e){} }
+
+/* theme cycles with the reader's own preference object, so the two pages never disagree */
+var P=Object.assign({theme:'auto'}, lsGet(PREF,{}));
+var THEMES=['auto','light','dark','eink'], ICON={auto:'◐',light:'☀',dark:'☾',eink:'▤'};
+function applyTheme(){
+  if(P.theme==='auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme',P.theme);
+  var b=$('#themebtn'); b.textContent=ICON[P.theme]; b.title='主题：'+
+    ({auto:'跟随系统',light:'日间',dark:'夜间',eink:'墨水屏'})[P.theme];
+}
+applyTheme();
+$('#themebtn').onclick=function(){
+  P.theme=THEMES[(THEMES.indexOf(P.theme)+1)%THEMES.length];
+  var all=Object.assign(lsGet(PREF,{}),{theme:P.theme}); lsSet(PREF,all); applyTheme();
+};
+
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]}); }
+function hms(s){ var h=Math.floor((s||0)/3600), m=Math.round((s||0)%3600/60);
+  return h?(h+' 小时'+(m?' '+m+' 分':'')):(m+' 分'); }
+
+var BOOKS=[], PROG={};
+Promise.all([
+  fetch('index.json').then(function(r){return r.json()}),
+  fetch('api/me').then(function(r){return r.ok?r.json():{auth:'local'}}).catch(function(){return{auth:'local'}}),
+  fetch('api/progress').then(function(r){return r.ok?r.json():{}}).catch(function(){return{}})
+]).then(function(a){
+  BOOKS=a[0]||[]; PROG=a[2]||{};
+  if(a[1] && a[1].auth!=='local') $('#who').textContent=a[1].user;
+  draw('');
 });
-</script></body></html>
+
+function posOf(b){
+  var p=PROG[b.slug];
+  if(!p) p=lsGet('ac:pos:'+b.slug,null);
+  return (p && typeof p.id==='number') ? p : null;
+}
+function pctOf(b){
+  var p=posOf(b);
+  return p ? Math.min(100, Math.round(100*p.id/Math.max(1,b.paragraphs-1))) : 0;
+}
+
+function draw(q){
+  q=(q||'').toLowerCase().trim();
+  var list=BOOKS.filter(function(b){
+    if(!q) return true;
+    return (b.title+' '+(b.author||'')+' '+(b.narrator||'')+' '+(b.series||'')).toLowerCase().indexOf(q)>=0;
+  });
+
+  /* continue reading: the most recently touched book, only when nothing is being searched */
+  var hero=$('#hero'); hero.innerHTML='';
+  if(!q){
+    var best=null, bestTs=0;
+    BOOKS.forEach(function(b){
+      var p=posOf(b); if(!p) return;
+      var ts=(p.ts||0); if(ts<1e12) ts*=1000;      // server stores seconds
+      if(ts>bestTs){ bestTs=ts; best=b; }
+    });
+    if(best){
+      var pct=pctOf(best);
+      hero.innerHTML='<a class="resume" href="reader.html?book='+encodeURIComponent(best.slug)+'">'+
+        (best.cover?'<img src="'+esc(best.slug+'/'+best.cover)+'" alt="">':'')+
+        '<span class="txt"><span class="k">继续阅读</span><h2></h2>'+
+        '<p>读到 '+pct+'%'+(best.chapters?' · 共 '+best.chapters+' 章':'')+'</p></span>'+
+        '<span class="go">接着听</span></a>';
+      hero.querySelector('h2').textContent=best.title;
+    }
+  }
+
+  /* group by series, keep singles in a trailing section */
+  var groups=[], byName={};
+  list.forEach(function(b){
+    var key=b.series||'';
+    if(!key){ groups.push({name:'', books:[b]}); return; }
+    if(!byName[key]){ byName[key]={name:key, books:[]}; groups.push(byName[key]); }
+    byName[key].books.push(b);
+  });
+  var series=groups.filter(function(g){return g.name && g.books.length>1});
+  var singles=[]; groups.forEach(function(g){ if(!(g.name && g.books.length>1)) singles=singles.concat(g.books); });
+
+  var h='';
+  series.forEach(function(g){
+    var secs=0, ch=0;
+    g.books.forEach(function(b){ secs+=b.seconds||0; ch+=b.chapters||0; });
+    h+='<section><div class="head"><h2>'+esc(g.name)+'</h2><span class="sub"><b>'+
+       g.books.length+'</b> 册 · <b>'+ch+'</b> 章 · '+hms(secs)+'</span></div><div class="grid">'+
+       g.books.map(card).join('')+'</div></section>';
+  });
+  if(singles.length){
+    h+='<section><div class="head"><h2>'+(series.length?'单行本':'全部书目')+
+       '</h2><span class="sub"><b>'+singles.length+'</b> 本</span></div><div class="grid">'+
+       singles.map(card).join('')+'</div></section>';
+  }
+  if(!list.length){
+    h='<div class="empty">'+(q?'没有匹配的书。':
+      '书架还空着。<br>把一本 epub / pdf 和它的音频放进同一个目录，然后跑<br><br>'+
+      '<code>audiobook-connector build &lt;目录名&gt;</code>')+'</div>';
+  }
+  $('#shelf').innerHTML=h;
+
+  var tb=BOOKS.length, ts=0, tc=0;
+  BOOKS.forEach(function(b){ ts+=b.seconds||0; tc+=b.chapters||0; });
+  $('#stat').textContent=tb? (tb+' 本书 · '+tc+' 章 · '+hms(ts)+'的朗读') : '';
+}
+
+function card(b){
+  var pct=pctOf(b);
+  var al=Math.round(100*b.aligned/Math.max(1,b.paragraphs));
+  var sub=[];
+  if(b.seconds) sub.push(hms(b.seconds));
+  if(b.chapters) sub.push(b.chapters+' 章');
+  return '<a class="card" href="reader.html?book='+encodeURIComponent(b.slug)+'">'+
+    '<span class="cov">'+
+      (b.cover?'<img src="'+esc(b.slug+'/'+b.cover)+'" alt="" loading="lazy">'
+              :'<span class="fallback">'+esc(b.title)+'</span>')+
+      (b.volume?'<span class="vol">'+b.volume+'</span>':'')+
+      (pct?'<span class="bar"><i style="width:'+pct+'%"></i></span>':'')+
+    '</span>'+
+    '<span class="meta"><b>'+esc(shortTitle(b))+'</b>'+
+      '<span>'+esc(sub.join(' · '))+'</span>'+
+      (al<25?'<span class="warn">仅 '+al+'% 段落对齐</span>':'')+
+    '</span></a>';
+}
+/* In a series the shared prefix is on the section header already; repeating it under every
+   cover makes seven identical-looking labels. */
+function shortTitle(b){
+  if(b.series && b.title.indexOf(b.series)===0){
+    var rest=b.title.slice(b.series.length).replace(/^[\s:·、,-]+/,'');
+    if(rest) return rest;
+  }
+  return b.title;
+}
+
+$('#q').addEventListener('input', function(){ draw(this.value); });
+$('#q').addEventListener('keydown', function(e){ if(e.key==='Escape'){ this.value=''; draw(''); } });
+document.addEventListener('keydown', function(e){
+  if(e.key==='/' && document.activeElement!==$('#q')){ e.preventDefault(); $('#q').focus(); }
+});
+</script>
+</body></html>

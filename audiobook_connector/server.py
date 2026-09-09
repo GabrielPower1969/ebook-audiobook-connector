@@ -4,6 +4,13 @@
   GET  /api/progress           → {slug: {id, f, t, ts}}        all books for this user
   GET  /api/progress/<slug>    → {id, f, t, ts} or {}
   POST /api/progress/<slug>    ← {id, f, t}                    saves reading position
+  GET  /api/marks              → {slug: [mark, ...]}           saved passages, all books
+  GET  /api/marks/<slug>       → [mark, ...]
+  POST /api/marks/<slug>       ← {items: [mark, ...]}          replaces this book's list
+
+A mark is {k, id, text, note, ts}: k is a client-generated key so the same passage saved on two
+devices merges instead of doubling. The browser keeps the same list in localStorage, so an
+anonymous LAN reader loses nothing — it simply never leaves the device.
 
 Progress is stored per user under <library>/_progress/<sha1(email)>.json. Identity comes from
 auth.identify(): Cloudflare Access JWT when present, else the anonymous "local" user."""
@@ -30,7 +37,7 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
         try:
             with open(prog_file(user)) as f: return json.load(f)
         except (OSError, ValueError):
-            return {"user": user, "books": {}}
+            return {"user": user, "books": {}, "marks": {}}
 
     class H(http.server.BaseHTTPRequestHandler):
         def _json(self, code: int, obj):
@@ -52,6 +59,31 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
                 return self._json(200, {"user": user, "auth": source})
             if path == "api/progress":
                 return self._json(200, load_prog(user)["books"])
+            if path == "api/marks":
+                return self._json(200, load_prog(user).get("marks", {}))
+            m = re.fullmatch(r"api/marks/([A-Za-z0-9._-]+)", path)
+            if m:
+                slug = m.group(1)
+                if body is None:
+                    return self._json(200, load_prog(user).get("marks", {}).get(slug, []))
+                if source == "local":
+                    return self._json(200, {"stored": False})
+                items = body.get("items")
+                if not isinstance(items, list) or len(items) > 2000:
+                    return self._json(400, {"error": "expected {items: [...]}, at most 2000"})
+                clean = []
+                for it in items:
+                    if not isinstance(it, dict):
+                        continue
+                    clean.append({"k": str(it.get("k", ""))[:64], "id": int(it.get("id", 0)),
+                                  "text": str(it.get("text", ""))[:2000], "note": str(it.get("note", ""))[:2000],
+                                  "ts": int(it.get("ts", 0))})
+                with lock:
+                    d = load_prog(user); d.setdefault("marks", {})[slug] = clean
+                    tmp = prog_file(user) + ".tmp"
+                    with open(tmp, "w") as f: json.dump(d, f)
+                    os.replace(tmp, prog_file(user))
+                return self._json(200, {"stored": True, "count": len(clean)})
             m = re.fullmatch(r"api/progress/([A-Za-z0-9._-]+)", path)
             if not m: return self._json(404, {"error": "unknown endpoint"})
             slug = m.group(1)

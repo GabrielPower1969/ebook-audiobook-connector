@@ -1,8 +1,12 @@
 """audiobook-connector CLI.
 
   audiobook-connector build <book-dir>     build one book into the library
+  audiobook-connector transcribe <dir>...  only fill the transcript cache (run a long series in the background)
   audiobook-connector serve                serve the library on the LAN
   audiobook-connector list                 list built books
+
+A book dir may carry a book.json with any of: title, author, series, volume, narrator, language,
+chapters (list of titles, in order). Chapter titles are otherwise read from the audio file names.
 
 Paths (override with env vars, which is how the Docker image is configured):
   AC_BOOKS    source dirs, one per book   default ./books
@@ -52,6 +56,23 @@ def _resolve_source(arg: str) -> pathlib.Path:
     sys.exit(f"no such book directory: {arg}  (looked in ./{arg} and {BOOKS}/{arg})")
 
 
+def _meta(src: pathlib.Path) -> dict:
+    try:
+        return json.load(open(src / "book.json"))
+    except FileNotFoundError:
+        return {}
+    except ValueError as e:
+        sys.exit(f"{src / 'book.json'}: {e}")
+
+
+def cmd_transcribe(a):
+    for s in a.source:
+        src = _resolve_source(s)
+        print(f"=== {src}")
+        transcribe.transcribe_all(src, CACHE / "transcripts", model=a.model, language=a.language or _meta(src).get("language"),
+                                  backend=a.backend, models_dir=CACHE / "models")
+
+
 def cmd_build(a):
     src = _resolve_source(a.source)
     book_file = formats.find_book(src)
@@ -61,14 +82,21 @@ def cmd_build(a):
     if not audios:
         sys.exit(f"no audio files found in {src} (looked for {', '.join(sorted(transcribe.AUDIO_EXT))})")
     print(f"source:  {src}\nbook:    {book_file.name}\naudio:   {len(audios)} file(s)")
+    meta = _meta(src)
 
     book = formats.parse_book(book_file)
-    title = a.title or book.title
-    slug = a.slug or slugify(title)
+    title = a.title or meta.get("title") or book.title
+    author = a.author or meta.get("author") or book.author
+    slug = a.slug or meta.get("slug") or slugify(title)
+    hints = meta.get("chapters") or formats.chapter_hints_from_names([f.name for f in audios])
+    if hints:
+        n = formats.mark_chapters(book.paras, hints)
+        print(f"chapters: {n}/{len(hints)} headings matched to audio chapter titles" +
+              ("" if n >= len(hints) - 1 else "  ⚠ check the table of contents"))
     print(f"title:   {title}  ({len(book.paras)} paragraphs)")
 
     print("transcribing:")
-    trs = transcribe.transcribe_all(src, CACHE / "transcripts", model=a.model, language=a.language,
+    trs = transcribe.transcribe_all(src, CACHE / "transcripts", model=a.model, language=a.language or meta.get("language"),
                                     backend=a.backend, models_dir=CACHE / "models")
 
     al = aligner.align([{"id": p.id, "tag": p.tag, "text": p.text} for p in book.paras], trs)
@@ -92,7 +120,11 @@ def cmd_build(a):
             old.unlink()
         shutil.copy2(cover, out / ("cover" + cover.suffix.lower()))
 
-    json.dump({"title": title, "author": book.author, "files": al["files"], "stats": st,
+    durations = [round(max((w["e"] for w in t["words"]), default=0), 1) for t in trs]   # ≈ last spoken word
+    json.dump({"title": title, "author": author, "series": meta.get("series", ""), "volume": meta.get("volume"),
+               "cover": next((c.name for c in sorted(out.glob("cover.*"))), None),
+               "narrator": meta.get("narrator", ""), "language": trs[0].get("language") if trs else None,
+               "files": al["files"], "durations": durations, "stats": st,
                "paras": [{"id": p.id, "tag": p.tag, "html": p.html, "t": t}
                          for p, t in zip(book.paras, al["paras"])]},
               open(out / "data.json", "w"), ensure_ascii=False)
@@ -110,8 +142,11 @@ def _write_index():
         x = json.load(open(dj))
         cover = next((c.name for c in sorted(d.glob("cover.*"))), None)
         books.append({"slug": d.name, "title": x["title"], "author": x.get("author", ""), "cover": cover,
-                      "files": len(x["files"]), "aligned": x["stats"]["aligned"],
-                      "paragraphs": x["stats"]["paragraphs"]})
+                      "series": x.get("series", ""), "volume": x.get("volume"), "narrator": x.get("narrator", ""),
+                      "files": len(x["files"]), "seconds": round(sum(x.get("durations", []))),
+                      "chapters": sum(1 for p in x["paras"] if p["tag"] == "h1"),
+                      "aligned": x["stats"]["aligned"], "paragraphs": x["stats"]["paragraphs"]})
+    books.sort(key=lambda b: (b["series"] or "~", b["volume"] or 0, b["title"]))
     json.dump(books, open(LIB / "index.json", "w"), ensure_ascii=False)
     for stale in ("index.html", "reader.html"):          # older versions copied these here
         (LIB / stale).unlink(missing_ok=True)
@@ -171,7 +206,8 @@ def main():
 
     b = sp.add_parser("build", help="align one book and add it to the library")
     b.add_argument("source", help="directory holding one book (epub/mobi/azw3/pdf) plus its audio files, or a name under AC_BOOKS")
-    b.add_argument("--title", help="override the title from the epub metadata")
+    b.add_argument("--title", help="override the title from book.json / the book metadata")
+    b.add_argument("--author", help="override the author")
     b.add_argument("--slug", help="URL name in the library (default: slugified title)")
     b.add_argument("--language", help="ISO code, e.g. en / zh. Default: whisper auto-detects")
     b.add_argument("--model", default=transcribe.DEFAULT_MODEL, help=f"whisper model (default {transcribe.DEFAULT_MODEL})")
@@ -179,6 +215,12 @@ def main():
     b.add_argument("--audio", default="symlink", choices=["symlink", "hardlink", "copy"],
                    help="how audio enters the library (default symlink, relative so the folder stays portable)")
     b.set_defaults(fn=cmd_build)
+
+    t = sp.add_parser("transcribe", help="fill the transcript cache for one or more book dirs, without building")
+    t.add_argument("source", nargs="+")
+    t.add_argument("--language"); t.add_argument("--model", default=transcribe.DEFAULT_MODEL)
+    t.add_argument("--backend", default=os.environ.get("AC_BACKEND", "auto"), choices=["auto", "mlx", "faster"])
+    t.set_defaults(fn=cmd_transcribe)
 
     s = sp.add_parser("serve", help="serve the library over HTTP")
     s.add_argument("--port", type=int, default=int(os.environ.get("AC_PORT", 8765)))
