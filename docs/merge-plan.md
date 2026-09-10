@@ -46,9 +46,13 @@ flowgt-ebook/                 一个仓库，私有
 | `Interviewing Users/` `193382011XUsers.pdf` | Steve Portigal《用户访谈》 | → `06-商业与创业/Interviewing Users - Steve Portigal/`，中译名待确认 | 归 06 还是 09 |
 | `Harry Potter Audio Books 1-7…/` 1.3 GB | 七册有声书 | 见下 | **是否把「全七册」拆成七个文件夹** |
 
+> **已执行 2026-09-10**：已拆成七本独立的书，索引重建为 182 本。
+
 **哈利波特要做一个决定。** 现在 `11-小说与故事/哈利·波特（全七册）…/` 是一个文件夹装七本 pdf。铁律 1 说一书一夹；应用里每一册是一本书、各有进度、各有海报。建议拆成七个：`哈利·波特1：魔法石 Harry Potter and the Philosopher's Stone - J.K.罗琳 J.K. Rowling/`，每个里面 pdf + `cover.jpg` + `audio/`。这会把 1 个索引条目变成 7 个。
 
 ### 1.1 非暴力沟通：两版都完整，但 A 版明显更适合这个产品
+
+> **已执行 2026-09-10**：B 版已移入废纸篓，留 A 版。
 
 | | A 版 `… (audiobook)` | B 版 `Marshall Rosenberg PhD - 2015` |
 |---|---|---|
