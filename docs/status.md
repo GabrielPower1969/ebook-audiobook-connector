@@ -114,16 +114,6 @@
 
 ---
 
-## 七、当前磁盘与仓库
-
-- 代码仓库：`~/Documents/workspace/audiobook-connector`，已推 GitHub（`ebook-audiobook-connector`，**public**）
-- 书库：`~/Documents/ebook`，9.1 GB，private git，只跟踪结构
-- 备份：`backups/audiobook-connector-20260910-0935.tgz`（26 MB，含转写缓存与阅读进度）
-- 打包产物已全部删除；磁盘剩约 22 GB
-
-
----
-
 ## 六、收费与报税（2026-09-10 调研）
 
 ### 6.1 ⚠️ 收费之前必须先解决的问题
@@ -174,3 +164,15 @@
 先别做收费。**先把产品做成「工具」形态**（用户带自己的书），域名和账号系统本来就要做；
 等真有人愿意付钱了，再接 Stripe——那时候一天就能接上，而版权和 GST 的问题必须在收第一块钱
 之前想清楚，不是之后。
+
+---
+
+## 七、当前磁盘与仓库
+
+- 代码仓库：`~/Documents/workspace/audiobook-connector`，已推 GitHub（`ebook-audiobook-connector`，**public**）
+- 书库：`~/Documents/ebook`，9.1 GB，private git，只跟踪结构
+- 备份：`backups/audiobook-connector-20260910-0935.tgz`（26 MB，含转写缓存与阅读进度）
+- 打包产物已全部删除；磁盘剩约 22 GB
+
+
+---
