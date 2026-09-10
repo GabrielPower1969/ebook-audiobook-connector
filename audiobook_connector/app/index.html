@@ -208,7 +208,12 @@ Promise.all([
   api('api/progress', {})
 ]).then(function(a){
   BOOKS=a[0]||[]; PROG=a[2]||{};
-  if(a[1] && a[1].auth!=='local') $('#who').textContent=a[1].user;
+  var me=a[1]||{};
+  // Signed in: show who. On a LAN nobody signs in, so show which device this is — the shelf then
+  // makes it obvious that positions are remembered per device rather than shared.
+  if(me.auth==='cloudflare' || me.auth==='proxy') $('#who').textContent=me.user;
+  else if(me.device) $('#who').textContent=me.device.name +
+      (me.books ? ' · ' + me.books + ' 本有进度' : '');
   draw('');
   showTip();
 });

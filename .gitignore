@@ -19,3 +19,4 @@ reports/
 cache/dict/
 dist/
 NOTES.local.md
+.serve.pid

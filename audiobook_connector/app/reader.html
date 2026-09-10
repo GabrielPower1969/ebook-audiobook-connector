@@ -9,8 +9,16 @@
      Every typeface below is one the device already has. -->
 <style>
 :root{
-  --serif:"Bookerly","Literata","Iowan Old Style","Source Serif 4","Palatino Linotype",Palatino,Georgia,"Songti SC","Noto Serif CJK SC","Noto Serif",serif;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Noto Sans CJK SC","Helvetica Neue",Arial,sans-serif;
+  /* Four faces you can actually get without downloading anything, best-first per platform.
+     New York is Apple's own reading face and what `ui-serif` resolves to on iPad and Mac;
+     Bookerly is Amazon's and exists inside the Kindle browser; Literata is Google's and ships on
+     Android and Boox; Charter is Matthew Carter's book face and is on every Apple device. */
+  --f-serif:"Bookerly","New York",ui-serif,Charter,"Iowan Old Style",Literata,"Source Serif 4","Songti SC","Noto Serif CJK SC",Georgia,serif;
+  --f-charter:Charter,"Bitstream Charter","Iowan Old Style","New York",ui-serif,"Songti SC",Georgia,serif;
+  --f-georgia:Georgia,"Songti SC","Noto Serif CJK SC","Times New Roman",serif;
+  --f-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Noto Sans CJK SC","Helvetica Neue",Arial,sans-serif;
+  --serif:var(--f-serif);
+  --sans:var(--f-sans);
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 
   --paper:#FBF9F5; --raised:#FFFFFF; --ink:#16211C; --ink-2:#46554E; --muted:#78867F;
@@ -369,7 +377,10 @@ select.mini{border:1px solid var(--line);background:var(--paper);border-radius:9
    <button data-v="auto">跟随系统</button><button data-v="light">日间</button>
    <button data-v="dark">夜间</button><button data-v="eink">墨水屏</button></div></div>
  <div class="row"><span>字体</span><div class="seg" id="segFont">
-   <button data-v="serif">衬线</button><button data-v="sans">黑体</button></div></div>
+   <button data-v="serif" title="New York / Bookerly / Literata：各平台为阅读设计的衬线体">衬线</button><button
+           data-v="charter" title="Charter：Matthew Carter 的书籍字体，小字号下最清晰">Charter</button><button
+           data-v="georgia" title="Georgia：笔画更粗，低分辨率屏幕上更稳">Georgia</button><button
+           data-v="sans" title="系统黑体">黑体</button></div></div>
  <div class="row"><span>字号</span><div class="stepper" id="stpSize">
    <button data-d="-1">A−</button><span></span><button data-d="1">A+</button></div></div>
  <div class="row"><span>行距</span><div class="stepper" id="stpLead">
@@ -434,7 +445,7 @@ function api(path, dflt){
 
 var SLUG=new URLSearchParams(location.search).get('book')||'';
 var BASE=ROOT+SLUG+'/', PKEY='ac:pos:'+SLUG, MKEY='ac:marks:'+SLUG, PREFKEY='ac:prefs';
-var D=null, SEQ=[], CH=[], curId=-1, curFile=-1, ME={user:'local',auth:'local'};
+var D=null, SEQ=[], CH=[], curId=-1, curFile=-1, ME={user:'local',auth:'local',stored:false};
 var marks=[], marksDirty=false, lastSave=0, restoring=false;
 var curSent=null;                       // {id, i, s, e}
 
@@ -473,7 +484,8 @@ function applyPrefs(){
   var r=document.documentElement.style;
   if(P.theme==='auto') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme',P.theme);
-  r.setProperty('--body-font', P.font==='sans'?'var(--sans)':'var(--serif)');
+  r.setProperty('--body-font', {sans:'var(--f-sans)', charter:'var(--f-charter)',
+                                georgia:'var(--f-georgia)'}[P.font] || 'var(--f-serif)');
   r.setProperty('--size', P.size+'px');
   r.setProperty('--lead', String(P.lead));
   r.setProperty('--measure', P.wide+'em');
@@ -891,7 +903,7 @@ function savePos(force){
   if(curId<0 || curFile<0 || restoring) return;
   var rec={id:curId, f:curFile, t:au.currentTime, ts:Date.now()};
   lsSet(PKEY, rec);
-  if(FILE || ME.auth==='local') return;
+  if(FILE || !ME.stored) return;
   var now=Date.now(); if(!force && now-lastSave<8000) return; lastSave=now;
   var body=JSON.stringify({id:rec.id,f:rec.f,t:rec.t}), url='api/progress/'+encodeURIComponent(SLUG);
   if(force && navigator.sendBeacon) navigator.sendBeacon(url, new Blob([body],{type:'application/json'}));
@@ -981,7 +993,7 @@ function dropMark(k){
 }
 function persistMarks(){ lsSet(MKEY, marks); marksDirty=true; pushMarks(false); }
 function pushMarks(force){
-  if(FILE || !marksDirty || ME.auth==='local') return;
+  if(FILE || !marksDirty || !ME.stored) return;
   if(!force && pushMarks._t) return;
   clearTimeout(pushMarks._t);
   var send=function(){

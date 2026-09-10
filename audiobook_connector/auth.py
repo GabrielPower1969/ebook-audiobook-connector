@@ -96,3 +96,69 @@ def identify(headers, verifier: AccessVerifier | None, require_auth: bool = Fals
     if require_auth or (verifier and via_cloudflare):
         return None, "denied"
     return "local", "local"
+
+
+# ---------------------------------------------------------------- per-device identity (LAN)
+"""On a trusted LAN nobody signs in, but each device should still get its own reading position.
+
+The obvious idea — key on the IP — does not survive contact with DHCP: this machine's own address
+moved from .25 to .164 between two sessions, and phones renumber constantly. A MAC address is
+stable per network but is only visible for devices on the same layer-2 segment, is randomised per
+SSID by every modern phone, and is invisible entirely from inside a container. So the key is a
+random id the device keeps in a cookie, which is stable, unguessable and works through any network
+path; the IP and MAC are recorded once as a *label*, so a human can tell one device from another.
+"""
+import re as _re, secrets, subprocess
+
+COOKIE = "ac_device"
+_ARP = {}
+
+
+def device_id(headers) -> str | None:
+    """The id this device already carries, or None if it has never been here."""
+    for part in (headers.get("Cookie") or "").split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == COOKIE and _re.fullmatch(r"[A-Za-z0-9_-]{16,64}", v or ""):
+            return v
+    return None
+
+
+def new_device_id() -> str:
+    return secrets.token_urlsafe(18)
+
+
+def cookie_header(did: str) -> str:
+    # Ten years, so a device keeps its shelf; Lax because the reader is only ever same-site.
+    return f"{COOKIE}={did}; Path=/; Max-Age=315360000; SameSite=Lax"
+
+
+def mac_of(ip: str) -> str:
+    """The MAC behind a LAN address, from the host's own ARP table. Empty when it cannot be known:
+    a different subnet, a container, or a client that has not been ARPed yet."""
+    if not ip or ip in _ARP:
+        return _ARP.get(ip, "")
+    _ARP[ip] = ""
+    if not _re.match(r"(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)", ip):
+        return ""
+    try:
+        out = subprocess.run(["arp", "-n", ip], capture_output=True, text=True, timeout=1.5).stdout
+        m = _re.search(r"(([0-9a-f]{1,2}:){5}[0-9a-f]{1,2})", out, _re.I)
+        if m:
+            _ARP[ip] = ":".join(f"{int(x, 16):02x}" for x in m.group(1).split(":"))
+    except Exception:
+        pass
+    return _ARP[ip]
+
+
+def describe(ua: str) -> str:
+    """A short, recognisable name for a device, from its user agent."""
+    ua = ua or ""
+    for pat, name in ((r"iPhone", "iPhone"), (r"iPad", "iPad"), (r"Android", "Android"),
+                      (r"Macintosh", "Mac"), (r"Windows", "Windows"), (r"CrOS", "ChromeOS"),
+                      (r"Linux", "Linux"), (r"Kindle|Silk", "Kindle"), (r"Onyx|Boox", "Boox")):
+        if _re.search(pat, ua, _re.I):
+            browser = next((b for b in ("Edg", "CriOS", "Chrome", "FxiOS", "Firefox", "Safari")
+                            if b in ua), "")
+            nice = {"Edg": "Edge", "CriOS": "Chrome", "FxiOS": "Firefox"}.get(browser, browser)
+            return f"{name} · {nice}" if nice else name
+    return "设备"

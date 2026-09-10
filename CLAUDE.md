@@ -45,7 +45,7 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
                        sentences()/tokens_pos() split a paragraph and map each sentence to a time;
                        `sent` is [[charStart, charEnd, s, e], …] over the paragraph's PLAIN text
   server.py            static HTTP with Range support, pre-compressed .gz siblings + JSON API (/api/me, /api/progress[/<slug>], /api/marks[/<slug>]); per-user progress + saved passages in library/_progress/
-  auth.py              identify() → email | "local" | denied. Two sources: Cloudflare Access JWT (RS256 via pow(), stdlib only) or a trusted proxy (AC_PROXY_SECRET + X-Flowgt-User, used by flowgt.co.nz/read/*)
+  auth.py              identify() → email | "local" | denied. Cloudflare Access JWT (RS256 via pow(), stdlib only) or a trusted proxy (AC_PROXY_SECRET + X-Flowgt-User). Plus device_id()/mac_of()/describe(): on a LAN nobody signs in, so each device gets a random id in a cookie and its own bucket
   app/index.html       bookshelf: series grouping, continue-reading, search   (served straight from the package; library/ is data only)
   app/reader.html      reader: sentence-level play/highlight, practice mode (repeat + shadowing
                        pause), word concordance + vocabulary list, TOC, search, saved passages,
@@ -54,6 +54,7 @@ audiobook_connector/   the package. Core is pure stdlib — keep it that way.
 scripts/               import-book.py  one title      import-series.py  a multi-volume set
                        cache-status.py how far transcription got   build-ready.py  build what is ready
                        verify-text.py  cross-check the shown text against the audio
+                       start.command / stop.command   one-click serve / thorough stop
                        build-dict.py   library-scoped dictionary from ECDICT → library/_dict/
                        package.py      a folder/zip that runs by double-clicking index.html
                        backup.sh       library + transcripts + dictionary, verified
@@ -94,7 +95,8 @@ library/_dict/         dict.json(+.gz): only the words this library uses. Fetche
   leaves the sentence layer silently missing. Wrapping all 93k sentences up front would add tens of
   thousands of elements to a big volume. It has to open on a Kindle experimental browser and a Boox e-ink tablet: system fonts only (a webfont fetch is a blank page), no CSS `:has()`, and the e-ink theme is pure black/white with every transition disabled.
 - Chapter titles come from the audio file names, not from the book's own headings: one audio file is one chapter, so the TOC and the player agree. `mark_chapters()` commits all-or-nothing (a <60% match rate means those were never chapter titles) and guards containment matches by length ratio (without it "HOGWARTS" swallows "The Battle of Hogwarts" and every later chapter shifts by one).
-- **Auth is never home-grown.** Identity is either a verified Cloudflare Access JWT email, or `X-Flowgt-User` from a proxy that proved itself with `AC_PROXY_SECRET` (constant-time compare; when the secret is set, every request without it is refused, LAN included). Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed). Anonymous "local" users never get server-side storage.
+- **Auth is never home-grown.** Identity is either a verified Cloudflare Access JWT email, or `X-Flowgt-User` from a proxy that proved itself with `AC_PROXY_SECRET` (constant-time compare; when the secret is set, every request without it is refused, LAN included). Requests that carry `Cf-Ray`/`Cf-Connecting-Ip` but no valid token are refused (fail closed).
+- **On a LAN the identity is the device, and the key is a cookie — not an IP and not a MAC.** DHCP moves addresses (this machine went from .25 to .164 between two sessions), phones randomise their MAC per SSID, and neither is visible from inside a container. So the server mints an unguessable random id on first contact, sets it for ten years, and gives that device its own progress file. The IP and MAC *are* recorded, once, as a human-readable label so a person can tell their devices apart — a label, never a key. Devices never see each other's data; the cookie is the only credential, which is the right trade on a network you trust and is why this stays off the public path.
 - `library/_progress/` is per-user data: back it up, never serve it, never commit it.
 - **The transcript never reaches the reader.** `data.json` paragraphs carry `id/tag/html/t` only —
   `html` is the book's own text and `t` is `{f,s,e,d}`. whisper output is a ruler for timings and

@@ -122,8 +122,21 @@ flowchart TD
 ```bash
 pip install -e '.[mlx]'                    # or '.[cpu]' off Apple Silicon
 audiobook-connector build my-book
-audiobook-connector serve                  # prints a http://192.168.x.x:8765 for your phone
+scripts/start.command                      # or: audiobook-connector serve
 ```
+
+`start.command` and `stop.command` are double-clickable on macOS — drag them to the Dock. Start
+prints every way in, including `http://<your-mac>.local:8765`, which keeps working when DHCP moves
+your address. Stop is thorough: the pid it wrote, any process by name, the Docker container, and
+anything else still holding the port, each pass verified.
+
+**Every device keeps its own place in every book, with no sign-in.** The first time a phone or
+tablet opens the shelf, the server gives it a random id, sets it as a cookie for ten years, and
+from then on that device has its own reading position and vocabulary for every book. The key is
+deliberately *not* the IP address or the MAC: DHCP moves addresses, phones randomise their MAC per
+network, and neither is visible from inside a container. Both are recorded once as a label — so
+the shelf can say *"iPhone · Safari"* rather than a hex string — but the cookie is what identifies
+the device.
 
 Or without touching Python at all:
 
@@ -242,6 +255,15 @@ Long-press still reaches your device's own dictionary: the reader never hijacks 
 | `w` | 📗 look up the selection |
 | `/` | 🔍 search the whole book |
 | `t` | 📑 chapters |
+
+**Fonts.** Four choices, all already on your device — the reader never downloads one. The default
+stack picks the best reading face each platform ships: **New York** on an iPad or Mac (Apple drew
+it for reading, with optical sizes), **Bookerly** inside the Kindle browser, **Literata** on Boox
+and Android. **Charter** is Matthew Carter's book face and is the sturdiest of them at small sizes;
+**Georgia** has the heaviest strokes, which helps on a low-resolution screen and is unnecessary on
+a retina one. On an iPad mini held in portrait the default lands at about 64 characters a line,
+which is where prose reads easiest — try Charter against the default and keep whichever your eye
+prefers.
 
 **Four themes**: follow-system, day, night, and **e-ink** — pure black on white, every transition
 and shadow removed, larger type, the current sentence underlined instead of shaded. The page loads
@@ -369,7 +391,23 @@ docker compose up -d                         # 局域网里任何设备打开 ht
 Apple 芯片的 Mac 转写快 14 倍：本机 `pip install -e '.[mlx,formats]'` 后 `build`，
 再 `scripts/backup.sh` 打包，把 tgz 拷到服务器解开，`docker compose up -d` 即可，不会重新转写。
 
-**阅读器是按英语学习设计的。** 正在朗读的**那一句**会在段落里高亮，点任意一句从那句开始播；
+****一键启停**：`scripts/start.command` 启动（macOS 双击即可，可拖到 Dock），会打印
+`http://<你的 Mac>.local:8765` —— 这个地址在 DHCP 换 IP 后依然有效。
+`scripts/stop.command` 彻底停止：PID、同名进程、Docker 容器、以及任何还占着端口的东西，逐道验证。
+
+**每台设备各自记住每本书读到哪，不用登录。** 手机第一次打开书架时，服务端给它一个随机
+设备标识、写进 cookie（十年），之后这台设备在每本书里的阅读位置和生词本都是它自己的。
+**刻意不用 IP 也不用 MAC 当钥匙**：DHCP 会换 IP（这台机器两次会话之间就从 .25 变成 .164），
+手机每个 Wi-Fi 用不同的随机 MAC，容器里两者都看不见。IP 和 MAC 只记一次当**标签**，
+好让书架能显示「iPhone · Safari」而不是一串十六进制。
+
+**字体**：四种，全都是设备自带的，本页从不下载字体。默认那档会挑各平台为阅读设计的那一款——
+iPad 和 Mac 上是 **New York**（苹果专为阅读设计，带光学尺寸），Kindle 浏览器里是 Bookerly，
+Boox 和安卓上是 Literata。**Charter** 是 Matthew Carter 的书籍字体，小字号下笔画最扎实；
+**Georgia** 笔画最粗，低分辨率屏幕上更稳，视网膜屏上没必要。**iPad mini 竖持时默认每行约 64 个
+字符**，正是散文最好读的区间——建议拿 Charter 和默认档各读几段，选你眼睛更舒服的那个。
+
+阅读器是按英语学习设计的。** 正在朗读的**那一句**会在段落里高亮，点任意一句从那句开始播；
 练习模式可以整句或整段复读 1–5 遍或一直重复，每句后可停 1–3 秒或与该句等长——听一句、停、
 自己说一遍，就是跟读循环，语速可以降到 0.5 倍。**双击任意单词**能看到音标、中英释义、
 考纲标签（中考/高考/四六级/考研/托福/雅思/GRE）、词频，以及它在**这本书**里的每一处原句，

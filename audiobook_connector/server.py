@@ -12,8 +12,11 @@ A mark is {k, id, kind, text, note, ts}: `kind` is "passage" or "word", and `k` 
 client-generated key so the same item saved on two devices merges instead of doubling. The browser keeps the same list in localStorage, so an
 anonymous LAN reader loses nothing — it simply never leaves the device.
 
-Progress is stored per user under <library>/_progress/<sha1(email)>.json. Identity comes from
-auth.identify(): Cloudflare Access JWT when present, else the anonymous "local" user."""
+Progress is stored per user under <library>/_progress/<sha1(identity)>.json. Identity is, in order:
+a verified Cloudflare Access email, a user asserted by a trusted proxy, or — on a LAN, where nobody
+signs in — the device itself, keyed by a random id it keeps in a cookie. See auth.py for why the
+key is a cookie and not an IP or a MAC (both move; both are invisible from inside a container),
+and why the IP and MAC are still recorded as a human-readable label."""
 from __future__ import annotations
 import hashlib, http.server, json, mimetypes, os, re, threading, time, urllib.parse
 from . import auth
@@ -39,24 +42,55 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
         except (OSError, ValueError):
             return {"user": user, "books": {}, "marks": {}}
 
+    def save_prog(user: str, d: dict):
+        tmp = prog_file(user) + ".tmp"
+        with open(tmp, "w") as f: json.dump(d, f, ensure_ascii=False)
+        os.replace(tmp, prog_file(user))
+
     class H(http.server.BaseHTTPRequestHandler):
         def _json(self, code: int, obj):
-            body = json.dumps(obj).encode()
+            body = json.dumps(obj, ensure_ascii=False).encode()
             self.send_response(code)
             self.send_header("Content-Type", "application/json"); self.send_header("Cache-Control", "no-store")
+            if getattr(self, "_setcookie", None):
+                self.send_header("Set-Cookie", self._setcookie)
             self.send_header("Content-Length", str(len(body))); self.end_headers(); self.wfile.write(body)
 
         def _user(self):
             user, source = auth.identify(self.headers, verifier, require_auth, proxy_secret)
             if user is None:
                 self._json(401, {"error": "sign in required"})
-            return user, source
+                return None, source
+            if source != "local":
+                return user, source
+            # Nobody signed in: fall back to the device, and give it an id if it has none yet.
+            did = auth.device_id(self.headers)
+            if not did:
+                did = auth.new_device_id()
+                self._setcookie = auth.cookie_header(did)
+            return "device:" + did, "device"
+
+        def _label(self):
+            ip = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip() \
+                 or self.client_address[0]
+            return {"name": auth.describe(self.headers.get("User-Agent", "")),
+                    "ip": ip, "mac": auth.mac_of(ip)}
 
         def _api(self, path: str, body: dict | None):
             user, source = self._user()
             if user is None: return
             if path == "api/me":
-                return self._json(200, {"user": user, "auth": source})
+                d = load_prog(user)
+                me = {"user": user, "auth": source, "stored": True}
+                if source == "device":
+                    lab = d.get("label") or {}
+                    if not lab.get("since"):
+                        lab = self._label(); lab["since"] = int(time.time())
+                        with lock:
+                            d = load_prog(user); d["label"] = lab; save_prog(user, d)
+                    me["device"] = lab
+                    me["books"] = len(d.get("books", {}))
+                return self._json(200, me)
             if path == "api/progress":
                 return self._json(200, load_prog(user)["books"])
             if path == "api/marks":
@@ -66,8 +100,6 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
                 slug = m.group(1)
                 if body is None:
                     return self._json(200, load_prog(user).get("marks", {}).get(slug, []))
-                if source == "local":
-                    return self._json(200, {"stored": False})
                 items = body.get("items")
                 if not isinstance(items, list) or len(items) > 2000:
                     return self._json(400, {"error": "expected {items: [...]}, at most 2000"})
@@ -82,26 +114,24 @@ def serve(root: str, port: int = 8765, host: str = "0.0.0.0", app_dir: str | Non
                                   "ts": int(it.get("ts", 0))})
                 with lock:
                     d = load_prog(user); d.setdefault("marks", {})[slug] = clean
-                    tmp = prog_file(user) + ".tmp"
-                    with open(tmp, "w") as f: json.dump(d, f)
-                    os.replace(tmp, prog_file(user))
+                    save_prog(user, d)
                 return self._json(200, {"stored": True, "count": len(clean)})
             m = re.fullmatch(r"api/progress/([A-Za-z0-9._-]+)", path)
             if not m: return self._json(404, {"error": "unknown endpoint"})
             slug = m.group(1)
             if body is None:
                 return self._json(200, load_prog(user)["books"].get(slug, {}))
-            if source == "local":                       # anonymous LAN readers keep progress in the browser
-                return self._json(200, {"stored": False})
             try:
                 rec = {"id": int(body["id"]), "f": int(body["f"]), "t": float(body["t"]), "ts": int(time.time())}
             except (KeyError, TypeError, ValueError):
                 return self._json(400, {"error": "expected {id, f, t}"})
             with lock:
                 d = load_prog(user); d["books"][slug] = rec
-                tmp = prog_file(user) + ".tmp"
-                with open(tmp, "w") as f: json.dump(d, f)
-                os.replace(tmp, prog_file(user))
+                if source == "device":
+                    lab = d.get("label") or self._label()
+                    lab.setdefault("since", int(time.time())); lab["seen"] = int(time.time())
+                    d["label"] = lab
+                save_prog(user, d)
             return self._json(200, {"stored": True, **rec})
 
         def do_POST(self):
