@@ -64,7 +64,10 @@ cat > "$PLIST" <<EOF
 EOF
 
 launchctl bootout "gui/$UID/$LABEL" 2>/dev/null
-"$DIR/scripts/stop.command" >/dev/null 2>&1
+# Free this port only. stop.command deliberately kills every instance by name, which is right
+# when a person asks for "stop", and wrong here: it would take down an unrelated copy too.
+for pid in $(lsof -ti "tcp:$PORT" 2>/dev/null); do kill "$pid" 2>/dev/null; done
+sleep 1
 if ! launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null; then
   echo "❌ launchctl bootstrap 失败 / failed. 日志 / log: $DIR/cache/serve.log"
   exit 1
