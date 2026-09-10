@@ -8,14 +8,26 @@
 
 ## 0. 一句话结论
 
-**合并成一个产品，不合并成一个仓库。**
+**合并成一个仓库 `flowgt-ebook`**（2026-09-10 定）。
 
-| | 现在 | 合并后 |
-|---|---|---|
-| `~/Documents/ebook` | 书库（数据，私有 git，只跟踪结构） | **仍是唯一的书源**。它的四条铁律、`build_index.py`、八位编号全部保留 |
-| `audiobook-connector` | 对齐管线 + 阅读器（代码，公开 git） | 变成**书房应用**：数据库、账号、书架、阅读器、后台任务。指向 ebook 目录读书 |
+```
+flowgt-ebook/                 一个仓库，私有
+├── app/                      书房应用：FastAPI · 导入器 · 后台任务
+│   └── web/                  前端（零构建）
+├── pipeline/                 原 audiobook_connector：formats · transcribe · align
+├── 01-思维与决策/ … 99-资料与说明书/    书本身，**git 忽略**
+├── _索引/                    书库规则与索引脚本，**跟踪**
+├── _store/                   派生物（封面 · 转写 · 对齐 · TTS），**git 忽略**
+├── AGENTS.md  CLAUDE.md      两套规则合成一份
+└── scripts/
+```
 
-为什么不塞进一个仓库：书库故意不把 6 GB 的书交给 git，而代码库是公开的。混在一起要么把书暴露出去，要么把代码藏起来。两个仓库、一个产品，各守各的规矩。
+书库原本就只跟踪结构不跟踪书（`.gitignore` 排除所有 epub/pdf/mp3），合并后沿用这条。
+
+⚠️ **合并后仓库必须设为 private。** 它会同时含有 170 本书的整理元数据（路径、评分、
+个人笔记、书单）和应用代码。现在的 `ebook` 是私有、`audiobook-connector` 是公开——
+合并只能取更严的那一档。代价是对齐管线不再公开；真想开源，日后把 `pipeline/` 单独
+发一个包即可，那部分是纯函数、没有个人数据。
 
 ---
 
@@ -28,7 +40,7 @@
 | `YES/` 8 个 mp3 | **《谈判力》有声书**（ID3：Fisher/Ury/Patton，Murphy Guyer 朗读，约 8 小时） | 与下一项**合并** | — |
 | `Getting to Yes - … [Qwerty80]/` pdf + Cover.jpg | 同一本书的正文 | → `04-职业与成长/谈判力 Getting to Yes - 罗杰·费希尔 Roger Fisher/`，音频进 `audio/`，`Cover.jpg`→`cover.jpg` | 归 04 还是 06 |
 | `Nonviolent Communication - … (audiobook)/` 37 个 mp3 | **《非暴力沟通》有声书**，按 CD/章节切 | → `07-心理与人生/非暴力沟通 Nonviolent Communication - 马歇尔·卢森堡 Marshall Rosenberg/audio/` | 归 07 还是 02 |
-| `Marshall Rosenberg PhD - 2015 - …/` 4 个 mp3 | **同一本书**的另一个有声版（4 大段） | 隔离到 `_索引/_重复文件待确认/`（铁律 3：不静默删） | 要不要留两版 |
+| `Marshall Rosenberg PhD - 2015 - …/` 4 个 mp3 | **同一本书**的另一个有声版（4 大段，64 kbps） | **建议弃用**，见 §1.1 | 你确认后隔离 |
 | `A Helping Hand - … Liv Larsson …/` epub | 另一本书：NVC 调解 | → `07-心理与人生/A Helping Hand - Liv Larsson/`（无可靠中译名，留单语） | — |
 | `Croll A. Lean Analytics … 2024/` **两个 pdf** | Croll 的《精益数据分析》+ 一本来路不明的 Wright "Complete Guide" | **拆开**：Croll → `06-商业与创业/精益数据分析 Lean Analytics - 阿利斯泰尔·克罗尔 Alistair Croll/`；Wright → `00-收件箱/` 等你看 | Wright 那本要不要 |
 | `Interviewing Users/` `193382011XUsers.pdf` | Steve Portigal《用户访谈》 | → `06-商业与创业/Interviewing Users - Steve Portigal/`，中译名待确认 | 归 06 还是 09 |
@@ -36,7 +48,24 @@
 
 **哈利波特要做一个决定。** 现在 `11-小说与故事/哈利·波特（全七册）…/` 是一个文件夹装七本 pdf。铁律 1 说一书一夹；应用里每一册是一本书、各有进度、各有海报。建议拆成七个：`哈利·波特1：魔法石 Harry Potter and the Philosopher's Stone - J.K.罗琳 J.K. Rowling/`，每个里面 pdf + `cover.jpg` + `audio/`。这会把 1 个索引条目变成 7 个。
 
-**空缺**：《非暴力沟通》只有音频没有正文，没法对齐——需要一个 epub。
+### 1.1 非暴力沟通：两版都完整，但 A 版明显更适合这个产品
+
+| | A 版 `… (audiobook)` | B 版 `Marshall Rosenberg PhD - 2015` |
+|---|---|---|
+| 时长 | 5.11 小时 | 5.16 小时 |
+| 文件 | **36 个，按章切**（4 张 CD） | 4 个，每个 ~78 分钟 |
+| 章节名 | **36 个真实章节名**（`The Origins of Nonviolent Communication`、`Receiving Gratitude`…） | 只有 `01 02 03 04` |
+| 码率 | **129 kbps** | 64 kbps |
+| 体积 | 287 MB | 143 MB |
+
+**两版内容都完整**，时长只差 3 分钟（约 1%），是片头片尾的差别，不是缺内容。
+
+**建议留 A 版。** 决定性的一条是章节名：本产品的目录直接取自音频文件名，A 版能给出
+36 章的完整目录，B 版的目录会是空的。码率也高一倍。B 版唯一的优势是省 144 MB——
+在 10 GB 的免费额度面前不值得。
+
+**空缺**：这本书目前**只有音频没有正文**，没法做逐句对齐。需要补一个 epub 或 pdf，
+补上之前它只能当纯有声书听。
 
 做完以上，跑 `python3 _索引/build_index.py` 收尾（铁律零）。
 
@@ -269,7 +298,7 @@ erDiagram
 |---|---|---|
 | 后端 | **FastAPI + uvicorn**，Python | 账号、会话、校验、文件流（Range）、OpenAPI 免费得到。现在 125 行的标准库服务器承载不了账号系统。对齐管线（`formats/transcribe/align`）**原样保留**，仍是纯函数 |
 | 数据库 | SQLite，标准库 `sqlite3` | 见上 |
-| 前端 | **仍是零构建的静态页**，一份 i18n JSON | 现在的阅读器在 Kindle / Boox 上能开，这是硬约束；书架页重做成登录 + 语言切换 + 海报网格 |
+| 前端 | **重新设计**，见 `docs/figma-brief.md`；实现仍走零构建静态页 + 一份 i18n JSON | 视觉重做，但「不下载网络字体、墨水屏零动画」这条硬约束不变——它是 Kindle / Boox 能打开的原因 |
 | 密码 | `hashlib.scrypt`，标准库 | 不自造加密；公网侧仍走 Cloudflare Access，账号系统管的是「谁在读」 |
 | 部署 | 见 §5：放送在 R2 + Worker，Mac Mini 只当「工厂」。若先在本机跑一版，放 `~/flowgt-library`（**不在 `~/Documents`**）+ LaunchAgent + Tunnel | 位置的坑已用实验确认：launchd 读不了 `~/Documents` |
 
@@ -402,9 +431,14 @@ Worker 大约 150 行。风险点是 Access 的登录 cookie 与 `<audio>` 的 R
 
 ## 6. 现在要你定的
 
-1. §1 表里四个「归哪个分类」和「哈利波特拆不拆」。
-2. 非暴力沟通留一版还是两版。
-3. 同意「两个仓库、一个产品」，还是坚持合成一个 git 仓库。
-4. 前端要不要上框架。我的建议是不要——零构建是 Kindle/Boox 能开的原因。
+已定：**一个仓库 `flowgt-ebook`**；前端**重新设计**（`docs/figma-brief.md`）。
+
+还缺你拍板：
+
+1. §1 表里四个「归哪个分类」：谈判力（04 还是 06）、非暴力沟通（07 还是 02）、
+   用户访谈（06 还是 09）、Wright 那本 Lean Analytics 要不要。
+2. **哈利波特拆不拆**成七个文件夹（建议拆，理由见 §1）。
+3. 非暴力沟通 **B 版确认弃用**？（分析见 §1.1，建议留 A 版）
+4. 合并后的 `flowgt-ebook` **设为 private** 确认（理由见 §0）。
 
 定了就从第 1 步开始。
