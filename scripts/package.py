@@ -108,9 +108,11 @@ def main():
 
     # ---- data
     write_pair(dest / "library" / "index.json", index, "__AC_INDEX")
-    if (lib / "_dict" / "dict.json").exists():
-        write_pair(dest / "library" / "_dict" / "dict.json",
-                   json.load(open(lib / "_dict" / "dict.json")), "__AC_DICT")
+    for shard in sorted((lib / "_dict").glob("*.json")):
+        if shard.name == "meta.json":
+            shutil.copy2(shard, dest / "library" / "_dict" / shard.name)
+        else:
+            write_pair(dest / "library" / "_dict" / shard.name, json.load(open(shard)), "__AC_DICT")
     n_audio = 0
     for b in index:
         slug = b["slug"]

@@ -64,7 +64,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", default="cache/dict/ecdict.csv")
     ap.add_argument("--library", default="library")
-    ap.add_argument("--out", default="library/_dict/dict.json")
+    ap.add_argument("--out", default="library/_dict", help="directory for the per-letter shards")
     ap.add_argument("--english", action="store_true", help="also keep the English gloss (bigger file)")
     a = ap.parse_args()
 
@@ -136,17 +136,37 @@ def main():
             continue
         words[w] = entry_id(r)
 
+    # One file per first letter. A lookup then costs a hundred kilobytes, not three megabytes —
+    # which matters most in the offline copy, where the browser parses it as script source.
     out = pathlib.Path(a.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"src": "ECDICT", "url": "https://github.com/skywind3000/ECDICT",
-               "licence": "MIT", "n": len(words), "e": entries, "w": words}
-    json.dump(payload, open(out, "w"), ensure_ascii=False, separators=(",", ":"))
-    with open(out, "rb") as fh, gzip.open(str(out) + ".gz", "wb", 6) as gz:
-        shutil.copyfileobj(fh, gz)
+    out.mkdir(parents=True, exist_ok=True)
+    for old in list(out.glob("*.json")) + list(out.glob("*.js")) + list(out.glob("*.gz")):
+        old.unlink()
+
+    shards: dict[str, dict[str, int]] = {}
+    for w, i in words.items():
+        k = w[0] if "a" <= w[0] <= "z" else "_"
+        shards.setdefault(k, {})[w] = i
+
+    total = 0
+    for k, ws in sorted(shards.items()):
+        used = sorted({i for i in ws.values()})
+        remap = {old: new for new, old in enumerate(used)}
+        payload = {"src": "ECDICT", "licence": "MIT", "k": k, "n": len(ws),
+                   "e": [entries[i] for i in used], "w": {w: remap[i] for w, i in ws.items()}}
+        f = out / f"{k}.json"
+        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+        f.write_text(body, encoding="utf-8")
+        with open(f, "rb") as fh, gzip.open(str(f) + ".gz", "wb", 6) as gz:
+            shutil.copyfileobj(fh, gz)
+        total += f.stat().st_size
+    json.dump({"src": "ECDICT", "url": "https://github.com/skywind3000/ECDICT", "licence": "MIT",
+               "n": len(words), "shards": sorted(shards)},
+              open(out / "meta.json", "w"), ensure_ascii=False)
     print(f"matched: {len(words)} words ({100*len(words)/max(1,len(want)):.0f}% of the library), "
           f"{len(entries)} distinct entries")
-    print(f"wrote:   {out} ({out.stat().st_size//1024} KB, "
-          f"{pathlib.Path(str(out)+'.gz').stat().st_size//1024} KB gzipped)")
+    print(f"wrote:   {len(shards)} shards in {out}/  ({total//1024} KB total, "
+          f"biggest {max(f.stat().st_size for f in out.glob('*.json'))//1024} KB)")
 
 
 if __name__ == "__main__":

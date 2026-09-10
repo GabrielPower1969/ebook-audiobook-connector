@@ -415,7 +415,14 @@ function loadData(path, name){
   return new Promise(function(res, rej){
     var s=document.createElement('script');
     s.src=ROOT+path+'.js';
-    s.onload=function(){ res(window[name]); };
+    s.onload=function(){
+      var v=window[name];
+      // Drop the global and the tag: otherwise the engine keeps megabytes of script source alive
+      // for the whole session, on top of the parsed object.
+      try{ delete window[name]; }catch(e){ window[name]=undefined; }
+      if(s.parentNode) s.parentNode.removeChild(s);
+      res(v);
+    };
     s.onerror=function(){ rej(new Error(s.src)); };
     document.head.appendChild(s);
   });
@@ -442,7 +449,21 @@ function toast(t){ var el=$('#toast'); el.textContent=t; el.classList.add('on');
   clearTimeout(toast._t); toast._t=setTimeout(function(){el.classList.remove('on')},2000); }
 function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
 function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
-function txt(h){ var d=document.createElement('div'); d.innerHTML=h; return d.textContent.trim(); }
+/* Plain text without a DOM round trip. The stored html only ever contains <i>/<b> and the five
+   entities Python's html.escape produces, plus whatever the source epub already had, so a regex
+   is both correct here and about twenty times cheaper than innerHTML on nine thousand nodes. */
+var ENT={amp:'&', lt:'<', gt:'>', quot:'"', apos:"'", nbsp:' ', mdash:'—', ndash:'–',
+         hellip:'…', rsquo:'’', lsquo:'‘', ldquo:'“', rdquo:'”'};
+function txt(h){
+  return String(h).replace(/<[^>]*>/g, '').replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, function(m, e){
+    if(e.charAt(0)==='#'){
+      var n = e.charAt(1)==='x'||e.charAt(1)==='X' ? parseInt(e.slice(2),16) : parseInt(e.slice(1),10);
+      return isNaN(n) ? m : String.fromCodePoint(n);
+    }
+    var v=ENT[e.toLowerCase()];
+    return v===undefined ? m : v;
+  }).trim();
+}
 
 /* ---------------------------------------------------------------- preferences */
 var P=Object.assign({theme:'auto', font:'serif', size:(screen.width<600?17:19), lead:1.78,
@@ -510,17 +531,17 @@ function render(){
     if(k>=3){ TOP=tag; break; }
   }
 
-  var frag=document.createDocumentFragment(), p, el;
+  // One innerHTML for the whole book. Nine thousand separate element.innerHTML assignments cost
+  // a quarter of a second and churn the parser; one string costs a fraction of that.
+  var html=[], p, tag;
   for(i=0;i<D.paras.length;i++){
     p=D.paras[i];
-    el=document.createElement(p.tag==='h1'?'h1':p.tag==='h2'?'h2':p.tag==='h3'?'h3':'p');
-    el.innerHTML=p.html; el.id='p'+p.id;
-    if(p.t){ el.className='al'; el.dataset.t=fmt(p.t.s); }
-    else el.className='na';
-    frag.appendChild(el);
-    if(p.tag===TOP) CH.push({id:p.id, title:txt(p.html), t:p.t});
+    tag=(p.tag==='h1'||p.tag==='h2'||p.tag==='h3')?p.tag:'p';
+    html.push('<',tag,' id="p',p.id,'" class="',(p.t?'al':'na'),'"',
+              (p.t?' data-t="'+fmt(p.t.s)+'"':''), '>', p.html, '</',tag,'>');
+    if(p.tag===TOP) CH.push({id:p.id, title:plainOf(p.id), t:p.t});
   }
-  book.appendChild(frag);
+  book.innerHTML=html.join('');
   if(!CH.length) CH.push({id:0,title:D.title,t:D.paras[0]&&D.paras[0].t});
 
   SEQ=D.paras.filter(function(p){return p.t}).sort(function(x,y){
@@ -1002,7 +1023,11 @@ function renderMarks(){
 }
 function renderWords(){
   var box=$('#words'), ws=vocab();
-  if(ws.length && !DICT) loadDict().then(renderWords);
+  // one shard per distinct first letter in the list, and only the ones not already here
+  var need=[], seen={};
+  ws.forEach(function(m){ var k=shardKey(normWord(m.text));
+    if(!SHARD[k] && !seen[k]){ seen[k]=1; need.push(k); } });
+  if(need.length){ Promise.all(need.map(function(k){ return loadDict(k); })).then(renderWords); }
   $('#tabWord').textContent='生词'+(ws.length?' '+ws.length:'');
   if(!ws.length){
     box.innerHTML='<p class="empty">还没有生词。<br><b>双击书里任意一个单词</b>，'+
@@ -1034,8 +1059,8 @@ function exportWords(){
   if(!ws.length) return;
   // word / gloss / a real sentence from the book / where it came from — an Anki row
   var lines=ws.map(function(m){
-    var occ=wordIndex()[normWord(m.text)];
-    var ex=occ&&occ.length ? sentenceText(occ[0]) : '';
+    var occ=occurrences(m.text);
+    var ex=occ.length ? sentenceText(occ[0]) : '';
     var g=glossOf(m.text);
     return [m.text, g?g.t:'', ex.replace(/\t/g,' '), D.title].join('\t');
   });
@@ -1059,28 +1084,39 @@ function fallbackCopy(text, n){
    every phone and e-reader already has one behind a long press. What a dictionary cannot give you
    is this book: how often the word occurs here and every sentence it occurs in. That is the part
    worth building, and it is also what makes a word stick. */
-var WIDX=null, PLAIN=null;
+var PLAIN=null;
 function plainOf(id){
-  if(!PLAIN) PLAIN={};
-  if(PLAIN[id]===undefined) PLAIN[id]=txt(D.paras[id].html);
-  return PLAIN[id];
+  if(!PLAIN) PLAIN=new Array(D.paras.length);
+  var v=PLAIN[id];
+  if(v===undefined) v=PLAIN[id]=txt(D.paras[id].html);
+  return v;
 }
-function normWord(w){ return String(w).toLowerCase().replace(/[’]/g,"'").replace(/^[^a-z0-9']+|[^a-z0-9']+$/g,''); }
-function wordIndex(){
-  if(WIDX) return WIDX;
-  WIDX={};
-  var re=/[A-Za-z][A-Za-z'’-]*/g;
+function normWord(w){ return String(w).toLowerCase().replace(/[\u2019]/g,"'").replace(/^[^a-z0-9']+|[^a-z0-9']+$/g,''); }
+
+/* Look one word up by scanning, instead of indexing every word in the book up front. An index
+   over Order of the Phoenix is a quarter of a million small arrays and ~14 MB that never goes
+   away; scanning for a single word is one pass over text we already hold, about 30 ms, and costs
+   nothing once cached. Only the last sixty answers are kept. */
+var WHITS={}, WORDER=[];
+function occurrences(w){
+  w=normWord(w);
+  if(!w) return [];
+  if(WHITS[w]) return WHITS[w];
+  var esc=w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var re=new RegExp("(?:^|[^A-Za-z'\u2019])(" + esc + ")(?![A-Za-z'\u2019])", 'gi');
+  var out=[];
   for(var i=0;i<D.paras.length;i++){
-    var t=plainOf(D.paras[i].id), m;
-    re.lastIndex=0;
+    var t=plainOf(D.paras[i].id), m; re.lastIndex=0;
     while((m=re.exec(t))){
-      var w=normWord(m[0]); if(w.length<2) continue;
-      (WIDX[w] || (WIDX[w]=[])).push([D.paras[i].id, m.index]);
+      out.push([D.paras[i].id, m.index + m[0].length - m[1].length]);
+      re.lastIndex = m.index + m[0].length;
     }
   }
-  return WIDX;
+  WHITS[w]=out; WORDER.push(w);
+  while(WORDER.length>60) delete WHITS[WORDER.shift()];
+  return out;
 }
-function wordCount(w){ var a=wordIndex()[normWord(w)]; return a?a.length:0; }
+function wordCount(w){ return occurrences(w).length; }
 function sentenceText(occ){
   var id=occ[0], at=occ[1], t=plainOf(id), p=D.paras[id];
   if(p.t && p.t.sent){
@@ -1093,26 +1129,28 @@ function sentenceText(occ){
 /* The dictionary is a few megabytes built from ECDICT for exactly the words this library uses
    (scripts/build-dict.py). It is fetched once, on the first lookup, and never before — a reader
    who only listens never pays for it. */
-var DICT=null, DICTP=null;
-function loadDict(){
-  if(DICT) return Promise.resolve(DICT);
-  if(!DICTP) DICTP=loadData('_dict/dict', '__AC_DICT')
-    .then(function(d){ DICT=d; return d; })
-    .catch(function(){ DICT={w:{},e:[],missing:1}; return DICT; });
-  return DICTP;
+var SHARD={}, SHARDP={};
+function shardKey(w){ var c=(w||'').charAt(0); return (c>='a'&&c<='z') ? c : '_'; }
+function loadDict(w){
+  var k=shardKey(normWord(w||''));
+  if(SHARD[k]) return Promise.resolve(SHARD[k]);
+  if(!SHARDP[k]) SHARDP[k]=loadData('_dict/'+k, '__AC_DICT')
+    .then(function(d){ SHARD[k]=d||{w:{},e:[]}; return SHARD[k]; })
+    .catch(function(){ SHARD[k]={w:{},e:[],missing:1}; return SHARD[k]; });
+  return SHARDP[k];
 }
 var TAGNAME={zk:'中考', gk:'高考', cet4:'四级', cet6:'六级', ky:'考研',
              toefl:'托福', ielts:'雅思', gre:'GRE'};
 function renderGloss(w){
-  var box=$('#wpgloss');
-  if(!DICT){ box.className='none'; box.textContent='正在载入词典…'; return; }
-  var i=DICT.w?DICT.w[w]:undefined, e=(i===undefined)?null:DICT.e[i];
+  var box=$('#wpgloss'), d=SHARD[shardKey(w)];
+  if(!d){ box.className='none'; box.textContent='正在载入词典…'; return; }
+  var e=glossOf(w);
   var out='<span class="out">'+
     '<a target="_blank" rel="noopener" href="https://dict.youdao.com/result?word='+encodeURIComponent(w)+'&lang=en">有道</a> · '+
     '<a target="_blank" rel="noopener" href="https://dictionary.cambridge.org/dictionary/english-chinese-simplified/'+encodeURIComponent(w)+'">剑桥</a></span>';
   if(!e){
     box.className='none';
-    box.innerHTML='<div class="tags">'+(DICT.missing?'词典未生成':'词典里没有这个词')+out+'</div>';
+    box.innerHTML='<div class="tags">'+(d.missing?'词典未生成':'词典里没有这个词')+out+'</div>';
     return;
   }
   box.className='';
@@ -1126,17 +1164,19 @@ function renderGloss(w){
     '<div class="tags">'+tags+frq+out+'</div>';
 }
 function glossOf(w){
-  if(!DICT || !DICT.w) return null;
-  var i=DICT.w[normWord(w)];
-  return i===undefined ? null : DICT.e[i];
+  w=normWord(w);
+  var d=SHARD[shardKey(w)];
+  if(!d || !d.w) return null;
+  var i=d.w[w];
+  return i===undefined ? null : d.e[i];
 }
 
 function showWord(w){
   w=normWord(w);
   if(!w){ return; }
-  var occ=wordIndex()[w] || [];
+  var occ=occurrences(w);
   renderGloss(w);
-  loadDict().then(function(){ if($('#wpword').textContent===w) renderGloss(w); });
+  loadDict(w).then(function(){ if($('#wpword').textContent===w) renderGloss(w); });
   $('#wpword').textContent=w;
   $('#wpcount').textContent=occ.length ? ('全书 '+occ.length+' 处') : '全书未出现';
   var saved=vocab().some(function(m){ return normWord(m.text)===w; });
