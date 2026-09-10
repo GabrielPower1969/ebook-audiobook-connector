@@ -117,6 +117,11 @@ library/_dict/         dict.json(+.gz): only the words this library uses. Fetche
 - PDF input is heuristic (tested on a synthetic reportlab fixture only); MOBI/AZW3 path is untested until a real file arrives. Scanned PDFs (no text layer) are not supported.
 - CPU transcription (Docker) runs at about real time: measured 60 s of audio → 65 s, large-v3-turbo int8, 4 threads, Docker on an M-series Mac. mlx on the same Mac: ~14× real time. Recommend `--model small` on CPU or building once on Apple Silicon.
 - No auth on the server — it is meant for a trusted LAN only.
+- **A LaunchAgent cannot serve this from `~/Documents`.** macOS refuses launchd-spawned processes
+  access to the Documents folder: a test agent running `ls` on the project prints
+  `Operation not permitted`, and the agent exits `EX_CONFIG 78`. For start-at-login, either move
+  the checkout out of `~/Documents`, or use Docker (`restart: unless-stopped`, and Docker Desktop
+  carries its own file-sharing grant). Otherwise `scripts/start.command` after a reboot.
 
 ## Project status
 
